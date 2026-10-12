@@ -10,7 +10,7 @@ into a streak game. While it's running, **Chrome is locked to the practice app**
 rounds): order of operations, fractions, percents, ratios, rates & work, divisors/GCF/LCM,
 primes & units digits, arithmetic sequences, equations & word problems, exponents &
 radicals, custom operations, counting, probability, Venn diagrams, area & perimeter,
-circles, Pythagorean theorem, angles & polygons, and mean/median/mode. That's 84 problem
+circles, Pythagorean theorem, angles & polygons, and mean/median/mode. That's 150 problem
 types. Each problem gets fresh numbers every time, so there's no running out and no memorizing answers.
 
 **Adaptive to past performance.**
@@ -121,7 +121,9 @@ manifest.json        Manifest V3 (fixed "key" → stable extension ID for the po
 background.js        Lock: declarativeNetRequest rules + tab watchdog + relock alarm
 app.html/.css/.js    The practice app (also replaces the new-tab page)
 blocked.html/.js     Page shown in place of blocked sites
-lib/topics.js        19 topics, 84 problem generators with steps, tips and common mistakes
+lib/topics.js        19 topics and their core problem generators (steps, tips, common mistakes)
+lib/topics-more.js   66 more problem types, 3–4 per topic
+lib/qhelpers.js      Shared answer/formatting helpers for the generators
 lib/answers.js       Answer parsing and checking (MATHCOUNTS Forms of Answers)
 lib/engine.js        Mastery, adaptive selection, streaks, XP, badges
 lib/blocking.js      Allow/deny logic and network rules
@@ -134,7 +136,7 @@ Everything runs offline. No accounts, no servers, no data leaves the laptop.
 
 ## Adding problems
 
-Add a variant to a topic in `lib/topics.js`. `gen(rng, level)` returns `{ q, answer, steps, tip,
+Add a variant to a topic in `lib/topics.js` or `lib/topics-more.js`. `gen(rng, level)` returns `{ q, answer, steps, tip,
 mistakes, unit?, form? }`, then run `node tests/run-tests.mjs`. The tests generate each variant 1,200 times
 and check that the answer is accepted by the checker, the text has no `NaN`/`undefined`, and the
 solution ends with the answer in bold.
