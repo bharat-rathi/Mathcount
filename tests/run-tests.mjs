@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { TOPICS, generateQuestion } from '../lib/topics.js';
 import { checkAnswer, specToString, specValue, matchesValue } from '../lib/answers.js';
-import { newState, startSession, gradeCurrent, advance, finishSession, liveDayStreak, buildDailySet, dailyUnlock } from '../lib/engine.js';
+import { newState, startSession, gradeCurrent, advance, finishSession, liveDayStreak, buildDailySet, dailyUnlock, unlockUntil, dashboardData, FOREVER_MS } from '../lib/engine.js';
 import { lockStatus } from '../lib/blocking.js';
 import { makeRng } from '../lib/mathutil.js';
 
@@ -142,6 +142,32 @@ assert.ok(result.why[0].includes('diameter'), 'should explain the radius/diamete
   assert.equal(dailyUnlock(st, now).unlockedUntil, now + 45 * 60000);
   st.settings.afterDaily = 'locked';
   assert.equal(dailyUnlock(st, now), null);
+}
+
+// ── Parent unlock times
+{
+  const now = new Date(2026, 9, 12, 16, 30).getTime();
+  assert.equal(unlockUntil('30', '', now), now + 30 * 60000);
+  assert.equal(unlockUntil('time', '20:15', now), new Date(2026, 9, 12, 20, 15).getTime());
+  assert.equal(unlockUntil('time', '07:00', now), new Date(2026, 9, 13, 7, 0).getTime(), 'earlier time means tomorrow');
+  assert.equal(unlockUntil('forever', '', now), now + FOREVER_MS);
+  assert.equal(unlockUntil('time', '', now), null);
+}
+
+// ── Dashboard (uses the 20-day geometry-weak student simulated above)
+{
+  const d = dashboardData(state, '2026-10-20');
+  assert.equal(d.series.length, 30);
+  assert.equal(d.series.at(-1).date, '2026-10-20');
+  assert.equal(d.series.filter((p) => p.done).length, 19);
+  assert.equal(d.series.find((p) => p.date === '2026-10-13').total, 0, 'the skipped day has no answers');
+  const geo = ['circles', 'pythag', 'angles', 'area'];
+  assert.ok(d.needsHelp.length > 0 && d.needsHelp.every((t) => t.status !== 'strong'));
+  assert.ok(geo.includes(d.needsHelp[0].id), `weakest topic should be geometry, got ${d.needsHelp[0].id}`);
+  assert.ok(d.doingWell.every((t) => !geo.includes(t.id) && t.recentAcc >= 0.8));
+  assert.equal(d.totals.answered, 190);
+  assert.ok(d.misses.length > 0 && d.misses[0].q && !/<[a-z]/.test(d.misses[0].q), 'misses are stored as plain text');
+  console.log('needs help:', d.needsHelp.map((t) => `${t.id} ${Math.round(t.recentAcc * 100)}%`).join(', '));
 }
 
 console.log(`${generated} questions generated across ${TOPICS.length} topics / ${TOPICS.reduce((a, t) => a + t.variants.length, 0)} variants`);

@@ -54,11 +54,25 @@ of 16π) is marked wrong, with an explanation of the rule.
   inside Chrome.
 - The new-tab page is the practice app, and it opens whenever Chrome starts. While locked there's only ever
   one copy: tabs open from before the lock are closed, and extra new tabs switch back to the practice tab.
-- **Parent area (PIN-protected):** unlock for 15 min to 3 h, lock again right away, progress report
-  per topic and for the last 14 days, settings, export.
+- **Parent area (PIN-protected):** a progress dashboard (below), lock controls, settings and export.
 - **Finishing the daily 10 unlocks browsing** for the rest of the day (it locks again at midnight). In the
   Parent area you can change this to a set number of minutes, or to "stay locked until a parent unlocks".
-- The locked page has a **Parent: unlock with PIN** button.
+- **🔓 Unlock button** (top bar, and on the locked page) asks for the parent PIN, then unlocks for
+  30 min / 1 h / 3 h, **until a time you pick** (e.g. 8:00 PM), or until you lock it again. A **🔒 Lock**
+  button (no PIN needed) ends any unlock.
+
+## Parent dashboard
+
+Parent → enter PIN → **📊 Dashboard**:
+- **Headline numbers:** accuracy this week (with the change from last week), daily sets done in the last
+  30 days, day streak, total questions answered.
+- **🆘 Needs help / ⭐ Doing well:** topics ranked by accuracy on their last 10 questions, with
+  level, an improving/slipping trend, and a real recent miss to talk through.
+- **Daily accuracy chart** for the last 30 days (hover a bar for the score).
+- **Every topic** bar chart: ✅ strong (80%+), ⚠️ getting there (50–79%), 🆘 needs help (under 50%).
+- **By area:** Number Sense, Number Theory, Algebra, Counting & Probability, Geometry, Data.
+- **Recent mistakes:** the question, what he answered, and the right answer.
+- Each chart has a "Show as table" option.
 
 ## Install (5 minutes, done by a parent)
 

@@ -16,6 +16,8 @@
     </button>
     <nav>
       <span id="lock-chip" class="chip"></span>
+      <button class="ghost" id="unlock-btn" hidden>🔓 Unlock</button>
+      <button class="ghost" id="relock-btn" hidden>🔒 Lock</button>
       <button class="ghost" data-go="badges">🏅 Badges</button>
       <button class="ghost" data-go="parent">👪 Parent</button>
     </nav>
@@ -159,24 +161,54 @@
       </div>
 
       <div id="parent-panel" hidden>
+        <div class="tabs" role="tablist">
+          <button class="tab active" data-ptab="dash" role="tab">📊 Dashboard</button>
+          <button class="tab" data-ptab="controls" role="tab">⚙️ Lock &amp; settings</button>
+          <button class="ghost tab-exit" id="parent-exit">← Leave parent area</button>
+        </div>
+
+        <div id="ptab-dash" class="stack-lg">
+          <div class="card">
+            <div class="row-between"><h2>How <span class="report-name"></span> is doing</h2><span class="small muted" id="dash-asof"></span></div>
+            <div id="dash-kpis" class="kpis"></div>
+          </div>
+
+          <div class="dash-grid">
+            <div class="card"><h2>🆘 Needs help</h2><p class="small muted">Lowest accuracy on the last 10 questions in each topic</p><div id="dash-help"></div></div>
+            <div class="card"><h2>⭐ Doing well</h2><p class="small muted">80%+ on the last 10 questions in the topic</p><div id="dash-well"></div></div>
+          </div>
+
+          <div class="card">
+            <div class="row-between"><h2>Daily accuracy</h2><span class="small muted">last 30 days · hover a bar for details</span></div>
+            <div id="dash-daily" class="vbars" role="img"></div>
+            <div id="dash-daily-axis" class="vbars-axis small muted"></div>
+            <details class="table-toggle"><summary>Show as table</summary><div class="table-wrap"><table id="days-table"></table></div></details>
+          </div>
+
+          <div class="card">
+            <div class="row-between"><h2>Every topic</h2><span class="small muted">accuracy on the last 10 questions</span></div>
+            <div class="legend small">
+              <span><i class="sw strong"></i>✅ Strong (80%+)</span><span><i class="sw ok"></i>⚠️ Getting there (50–79%)</span>
+              <span><i class="sw help"></i>🆘 Needs help (under 50%)</span><span><i class="sw new"></i>Not enough data yet</span>
+            </div>
+            <div id="dash-topics" class="hbars"></div>
+            <details class="table-toggle"><summary>Show as table</summary><div class="table-wrap"><table id="report-table"></table></div></details>
+          </div>
+
+          <div class="dash-grid">
+            <div class="card"><h2>By area</h2><p class="small muted">All-time accuracy per MATHCOUNTS area</p><div id="dash-strands" class="hbars compact"></div></div>
+            <div class="card"><h2>Recent mistakes</h2><p class="small muted">Talk through one or two of these together</p><div id="dash-misses"></div></div>
+          </div>
+        </div>
+
+        <div id="ptab-controls" class="stack-lg" hidden>
         <div class="card">
           <div class="row-between"><h2>Browser lock</h2><span id="parent-lock-state" class="chip"></span></div>
           <p class="small muted">While locked, every website is blocked except the sites you allow below. Searching and AI/answer sites stay blocked even when unlocked (unless you change that below).</p>
           <div class="row wrap">
-            <button class="secondary" data-unlock="15">Unlock 15 min</button>
-            <button class="secondary" data-unlock="30">Unlock 30 min</button>
-            <button class="secondary" data-unlock="60">Unlock 1 hour</button>
-            <button class="secondary" data-unlock="180">Unlock 3 hours</button>
+            <button class="primary" id="parent-unlock">🔓 Unlock…</button>
             <button class="danger" id="lock-now">🔒 Lock now</button>
           </div>
-        </div>
-
-        <div class="card">
-          <h2>Progress report — <span id="report-name"></span></h2>
-          <div id="report-summary" class="pills"></div>
-          <div class="table-wrap"><table id="report-table"></table></div>
-          <h3>Last 14 days</h3>
-          <div class="table-wrap"><table id="days-table"></table></div>
         </div>
 
         <div class="card">
@@ -205,13 +237,37 @@
             <button class="secondary" id="export-btn">⬇️ Export progress (JSON)</button>
             <button class="secondary" id="change-pin-btn">🔑 Change PIN</button>
             <button class="danger" id="reset-btn">Reset all progress</button>
-            <button class="ghost" id="parent-exit">Leave parent area</button>
           </div>
+        </div>
         </div>
       </div>
     </section>
   </main>
 
+  <div id="unlock-modal" class="modal" hidden>
+    <div class="card modal-card" role="dialog" aria-modal="true" aria-labelledby="unlock-title">
+      <h2 id="unlock-title">🔓 Unlock the browser</h2>
+      <form id="unlock-form" class="stack">
+        <label id="unlock-pin-row"><span>Parent PIN</span>
+          <input id="unlock-pin" type="password" inputmode="numeric" autocomplete="off"></label>
+        <fieldset class="choices">
+          <legend>For how long?</legend>
+          <label class="check"><input type="radio" name="dur" value="30"> 30 minutes</label>
+          <label class="check"><input type="radio" name="dur" value="60" checked> 1 hour</label>
+          <label class="check"><input type="radio" name="dur" value="180"> 3 hours</label>
+          <label class="check"><input type="radio" name="dur" value="time"> Until <input id="unlock-time" type="time" value="20:00"></label>
+          <label class="check"><input type="radio" name="dur" value="forever"> Until I lock it again</label>
+        </fieldset>
+        <p class="error" id="unlock-error"></p>
+        <div class="row">
+          <button class="primary" type="submit">Unlock</button>
+          <button class="ghost" type="button" id="unlock-cancel">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="tip" class="viz-tip" hidden></div>
   <div id="toasts" class="toasts" aria-live="polite"></div>
   <script type="module" src="app.js"></script>
 </body>

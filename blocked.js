@@ -6,5 +6,5 @@ document.getElementById('go').addEventListener('click', () => {
   location.href = chrome.runtime.getURL('app.html');
 });
 document.getElementById('parent').addEventListener('click', () => {
-  location.href = chrome.runtime.getURL('app.html#parent');
+  location.href = chrome.runtime.getURL('app.html#unlock');
 });

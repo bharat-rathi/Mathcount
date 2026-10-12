@@ -1,7 +1,8 @@
 import { TOPICS, TOPIC_BY_ID } from './lib/topics.js';
 import {
   dateKey, startSession, gradeCurrent, advance, finishSession, liveDayStreak, rankFor,
-  GLOBAL_BADGES, TIERS, TIER_RULES, topicTier, recentAccuracy, weakestTopics, newState, dailyUnlock,
+  GLOBAL_BADGES, TIERS, TIER_RULES, topicTier, recentAccuracy, newState, dailyUnlock,
+  dashboardData, unlockUntil,
 } from './lib/engine.js';
 import { loadState, saveState, setPin, verifyPin } from './lib/store.js';
 import { lockStatus, cleanDomain } from './lib/blocking.js';
@@ -53,13 +54,17 @@ function renderLockChip() {
     chip.textContent = `🔓 ${unlockText(st)}`;
     chip.className = 'chip unlocked';
   }
+  $('unlock-btn').hidden = !st.locked;
+  $('relock-btn').hidden = st.locked || st.mode === 'setup';
 }
 
 function unlockText(st) {
+  if (st.until - Date.now() > 7 * 86400000) return 'Unlocked until a parent locks it';
   const midnight = new Date(); midnight.setHours(24, 0, 0, 0);
   if (st.until === midnight.getTime()) return 'Unlocked for the rest of today';
   const t = new Date(st.until).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  return `${st.mode === 'reward' ? 'Reward time' : 'Unlocked'} until ${t}`;
+  const tomorrow = new Date(st.until).toDateString() !== new Date().toDateString() ? ' tomorrow' : '';
+  return `${st.mode === 'reward' ? 'Reward time' : 'Unlocked'} until ${t}${tomorrow}`;
 }
 
 // ───────────────────────────── Setup
@@ -367,34 +372,10 @@ function renderParent() {
   if (!parentAuthed) { setTimeout(() => $('pin-input').focus(), 30); return; }
 
   const st = lockStatus(state);
-  $('parent-lock-state').textContent = st.locked ? '🔒 Locked' : `🔓 Unlocked until ${new Date(st.until).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+  $('parent-lock-state').textContent = st.locked ? '🔒 Locked' : `🔓 ${unlockText(st)}`;
   $('parent-lock-state').className = `chip ${st.locked ? 'locked' : 'unlocked'}`;
 
-  $('report-name').textContent = state.profile.name || 'Mathlete';
-  const attempts = Object.values(state.topics).reduce((a, t) => a + t.attempts, 0);
-  const correct = Object.values(state.topics).reduce((a, t) => a + t.correct, 0);
-  const daysDone = Object.values(state.days).filter((d) => d.completed).length;
-  const weak = weakestTopics(state, 3).map((w) => w.topic.name);
-  $('report-summary').innerHTML = [
-    `📅 ${daysDone} day${daysDone === 1 ? '' : 's'} completed`, `🔥 streak ${liveDayStreak(state, dateKey())} (best ${state.streaks.day.best})`,
-    `✅ ${correct}/${attempts} correct overall${attempts ? ` (${Math.round((100 * correct) / attempts)}%)` : ''}`,
-    weak.length ? `🎯 Focus areas: ${weak.join(', ')}` : '🎯 Focus areas appear after a few days',
-  ].map((p) => `<span class="pill">${esc(p)}</span>`).join('');
-
-  const rows = TOPICS.map((t) => {
-    const s = state.topics[t.id];
-    const acc = s ? recentAccuracy(s, 10) : null;
-    return { t, s, acc };
-  }).sort((a, b) => (a.s?.mastery ?? 0.5) - (b.s?.mastery ?? 0.5));
-  $('report-table').innerHTML = `<tr><th>Topic</th><th>Tried</th><th>Overall</th><th>Last 10</th><th>Level</th><th>Medal</th><th>Last practiced</th></tr>` +
-    rows.map(({ t, s, acc }) => `<tr><td>${t.icon} ${t.name}</td><td>${s?.attempts || 0}</td><td>${s?.attempts ? Math.round((100 * s.correct) / s.attempts) + '%' : '—'}</td>
-      <td class="${acc == null ? '' : acc >= 0.8 ? 'good-text' : acc < 0.5 ? 'bad-text' : ''}">${acc == null ? '—' : Math.round(acc * 100) + '%'}</td>
-      <td>${'★'.repeat(s?.level || 1)}</td><td>${topicTier(state, t.id) ? TIERS[topicTier(state, t.id)].icon : ''}</td><td>${s?.lastSeen || '—'}</td></tr>`).join('');
-
-  const days = [];
-  for (let i = 0; i < 14; i++) { const d = new Date(); d.setDate(d.getDate() - i); days.push(dateKey(d)); }
-  $('days-table').innerHTML = `<tr><th>Date</th><th>Daily set</th><th>Score</th><th>Minutes</th></tr>` +
-    days.map((k) => { const d = state.days[k]; return `<tr><td>${k}</td><td>${d?.completed ? '✅' : '—'}</td><td>${d ? `${d.correct}/${d.total}` : ''}</td><td>${d?.minutes ?? ''}</td></tr>`; }).join('');
+  renderDashboard();
 
   $('set-count').value = state.settings.questionsPerDay;
   $('set-after').value = state.settings.afterDaily;
@@ -404,6 +385,108 @@ function renderParent() {
   $('set-search').checked = state.settings.blockSearchWhenUnlocked !== false;
   $('settings-saved').textContent = '';
 }
+
+document.querySelectorAll('[data-ptab]').forEach((b) => b.addEventListener('click', () => {
+  document.querySelectorAll('[data-ptab]').forEach((x) => x.classList.toggle('active', x === b));
+  $('ptab-dash').hidden = b.dataset.ptab !== 'dash';
+  $('ptab-controls').hidden = b.dataset.ptab !== 'controls';
+}));
+
+// ───────────────────────────── Parent dashboard
+
+const pct = (x) => (x == null ? '—' : `${Math.round(x * 100)}%`);
+const STATUS = {
+  strong: { icon: '✅', label: 'Strong' },
+  ok: { icon: '⚠️', label: 'Getting there' },
+  help: { icon: '🆘', label: 'Needs help' },
+  new: { icon: '·', label: 'Not enough data' },
+};
+const shortDate = (k) => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString([], { month: 'short', day: 'numeric' }); };
+
+function renderDashboard() {
+  const d = dashboardData(state, dateKey());
+  const name = state.profile.name || 'your Mathlete';
+  document.querySelectorAll('.report-name').forEach((e) => (e.textContent = name));
+  $('dash-asof').textContent = `as of ${new Date().toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}`;
+
+  // Headline numbers
+  const tw = d.thisWeek, lw = d.lastWeek;
+  const delta = tw.acc != null && lw.acc != null ? Math.round((tw.acc - lw.acc) * 100) : null;
+  const kpis = [
+    { label: 'Accuracy this week', value: pct(tw.acc), sub: tw.total ? `${tw.correct} of ${tw.total} correct` + (delta == null ? '' : ` · ${delta >= 0 ? '▲' : '▼'} ${Math.abs(delta)} pts vs last week`) : 'no questions yet this week', cls: delta == null ? '' : delta >= 0 ? 'up' : 'down' },
+    { label: 'Daily sets done', value: `${d.totals.daysDoneInWindow}/30`, sub: 'in the last 30 days' },
+    { label: 'Day streak', value: d.totals.streak, sub: `best ${d.totals.bestStreak}` },
+    { label: 'Questions answered', value: d.totals.answered, sub: d.totals.answered ? `${pct(d.totals.acc)} correct overall` : 'starts with the first set' },
+  ];
+  $('dash-kpis').innerHTML = kpis.map((k) => `<div class="kpi"><div class="kpi-label">${k.label}</div><div class="kpi-value">${k.value}</div><div class="kpi-sub ${k.cls || ''}">${esc(k.sub)}</div></div>`).join('');
+
+  // Needs help / doing well
+  const missFor = (id) => d.misses.find((m) => m.t === id);
+  const topicCard = (t, showMiss) => {
+    const m = showMiss && missFor(t.id);
+    const trend = t.trend == null ? '' : t.trend > 0.15 ? ' · ▲ improving' : t.trend < -0.15 ? ' · ▼ slipping' : '';
+    return `<div class="topic-row">
+      <div class="topic-row-top"><span>${t.icon} <b>${esc(t.name)}</b></span><span class="status-tag ${t.status}">${STATUS[t.status].icon} ${pct(t.recentAcc)}</span></div>
+      <div class="small muted">${Math.round(t.recentAcc * t.recentCount)} of last ${t.recentCount} right · Level ${'★'.repeat(t.level)}${trend}</div>
+      ${m ? `<div class="small miss-eg">Missed: “${esc(m.q.length > 110 ? m.q.slice(0, 107) + '…' : m.q)}” — answered ${esc(m.a)}, correct ${esc(m.ans)}</div>` : ''}
+    </div>`;
+  };
+  $('dash-help').innerHTML = d.needsHelp.length ? d.needsHelp.map((t) => topicCard(t, true)).join('') :
+    `<p class="muted">${d.totals.answered < 15 ? 'Topics show up here after a few days of practice (3+ questions in a topic).' : 'Nothing below 80% right now. 🎉'}</p>`;
+  $('dash-well').innerHTML = d.doingWell.length ? d.doingWell.map((t) => topicCard(t, false)).join('') :
+    `<p class="muted">Topics with 80%+ on recent questions will show here.</p>`;
+
+  // Daily accuracy (one series: no legend; hover for details)
+  $('dash-daily').innerHTML = `<div class="vbars-grid"><span style="bottom:100%">100%</span><span style="bottom:50%">50%</span></div>` + d.series.map((p) => {
+    const tipText = p.total ? `${shortDate(p.date)}: ${p.correct}/${p.total} correct (${pct(p.correct / p.total)})${p.done ? ' · daily set done' : ''}` : `${shortDate(p.date)}: no practice`;
+    return p.total
+      ? `<div class="vcol" data-tip="${esc(tipText)}"><div class="vbar" style="height:${Math.max(2, (100 * p.correct) / p.total)}%"></div></div>`
+      : `<div class="vcol empty" data-tip="${esc(tipText)}"><div class="vstub"></div></div>`;
+  }).join('');
+  $('dash-daily').setAttribute('aria-label', `Daily accuracy over the last 30 days. ${d.series.filter((p) => p.total).length} days with practice.`);
+  $('dash-daily-axis').innerHTML = `<span>${shortDate(d.series[0].date)}</span><span>${shortDate(d.series[15].date)}</span><span>Today</span>`;
+  $('days-table').innerHTML = `<tr><th>Date</th><th>Daily set</th><th>Correct</th><th>Accuracy</th></tr>` +
+    d.series.slice().reverse().map((p) => `<tr><td>${p.date}</td><td>${p.done ? '✅' : '—'}</td><td>${p.total ? `${p.correct}/${p.total}` : ''}</td><td>${p.total ? pct(p.correct / p.total) : ''}</td></tr>`).join('');
+
+  // Every topic, weakest first; untried at the end
+  const order = { help: 0, ok: 1, strong: 2, new: 3 };
+  const rows = d.topics.slice().sort((a, b) => order[a.status] - order[b.status] || (a.recentAcc ?? 2) - (b.recentAcc ?? 2) || b.attempts - a.attempts);
+  $('dash-topics').innerHTML = rows.map((t) => {
+    const tipText = t.attempts ? `${t.name}: ${Math.round((t.recentAcc ?? 0) * t.recentCount)}/${t.recentCount} on recent questions, ${t.correct}/${t.attempts} all-time · Level ${t.level} · last practiced ${t.lastSeen}` : `${t.name}: not practiced yet`;
+    return `<div class="hrow" data-tip="${esc(tipText)}">
+      <div class="hlabel">${t.icon} ${esc(t.name)}</div>
+      <div class="htrack">${t.recentAcc != null ? `<div class="hbar ${t.status}" style="width:${Math.max(1.5, t.recentAcc * 100)}%"></div>` : ''}</div>
+      <div class="hval">${t.attempts ? `${STATUS[t.status].icon} ${pct(t.recentAcc)}` : '<span class="muted">not tried</span>'}</div>
+    </div>`;
+  }).join('');
+  $('report-table').innerHTML = `<tr><th>Topic</th><th>Status</th><th>Last 10</th><th>All-time</th><th>Level</th><th>Medal</th><th>Last practiced</th></tr>` +
+    rows.map((t) => `<tr><td>${t.icon} ${esc(t.name)}</td><td>${t.status === 'new' ? '—' : `${STATUS[t.status].icon} ${STATUS[t.status].label}`}</td><td>${t.recentCount ? `${pct(t.recentAcc)} (${Math.round(t.recentAcc * t.recentCount)}/${t.recentCount})` : '—'}</td>
+      <td>${t.attempts ? `${t.correct}/${t.attempts}` : '—'}</td><td>${'★'.repeat(t.level)}</td><td>${t.tier ? TIERS[t.tier].icon : ''}</td><td>${t.lastSeen || '—'}</td></tr>`).join('');
+
+  // By area (one hue)
+  $('dash-strands').innerHTML = d.strands.map((s) => `<div class="hrow" data-tip="${esc(`${s.name}: ${s.correct}/${s.attempts} correct`)}">
+      <div class="hlabel">${esc(s.name)}</div>
+      <div class="htrack">${s.acc != null ? `<div class="hbar plain" style="width:${Math.max(1.5, s.acc * 100)}%"></div>` : ''}</div>
+      <div class="hval">${s.attempts ? pct(s.acc) : '<span class="muted">—</span>'}</div></div>`).join('');
+
+  // Recent mistakes
+  $('dash-misses').innerHTML = d.misses.length ? d.misses.map((m) => {
+    const t = TOPIC_BY_ID[m.t];
+    return `<div class="miss"><div class="small muted">${shortDate(m.d)} · ${t ? `${t.icon} ${esc(t.name)}` : ''}</div><div>${esc(m.q)}</div><div class="small"><span class="bad-text">Answered ${esc(m.a)}</span> · <span class="good-text">Correct: ${esc(m.ans)}</span></div></div>`;
+  }).join('') : '<p class="muted">No mistakes recorded yet.</p>';
+}
+
+// Hover tooltip for any [data-tip] mark
+document.addEventListener('mousemove', (e) => {
+  const el = e.target.closest('[data-tip]');
+  const tip = $('tip');
+  if (!el) { tip.hidden = true; return; }
+  tip.textContent = el.dataset.tip;
+  tip.hidden = false;
+  const w = tip.offsetWidth;
+  tip.style.left = `${Math.min(innerWidth - w - 8, Math.max(8, e.clientX - w / 2))}px`;
+  tip.style.top = `${e.clientY - tip.offsetHeight - 14}px`;
+});
 
 function authParent() {
   parentAuthed = true;
@@ -420,20 +503,55 @@ $('pin-form').addEventListener('submit', async (e) => {
   $('pin-input').value = '';
 });
 
-document.querySelectorAll('[data-unlock]').forEach((b) => b.addEventListener('click', async () => {
-  if (!parentAuthed) return;
-  state.lock = { unlockedUntil: Date.now() + Number(b.dataset.unlock) * 60000, mode: 'parent' };
-  await save();
-  toast(`Browser unlocked for ${b.dataset.unlock} minutes`, '🔓');
-  renderParent(); renderLockChip();
-}));
+// ───────────────────────────── Unlock (PIN-protected)
 
-$('lock-now').addEventListener('click', async () => {
+function openUnlock() {
+  $('unlock-pin-row').hidden = parentAuthed;
+  $('unlock-pin').value = '';
+  $('unlock-error').textContent = '';
+  $('unlock-modal').hidden = false;
+  setTimeout(() => (parentAuthed ? $('unlock-form').querySelector('[type=submit]') : $('unlock-pin')).focus(), 30);
+}
+function closeUnlock() { $('unlock-modal').hidden = true; }
+
+$('unlock-btn').addEventListener('click', openUnlock);
+$('parent-unlock').addEventListener('click', openUnlock);
+$('unlock-cancel').addEventListener('click', closeUnlock);
+$('unlock-modal').addEventListener('click', (e) => { if (e.target === $('unlock-modal')) closeUnlock(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('unlock-modal').hidden) closeUnlock(); });
+$('unlock-time').addEventListener('focus', () => { document.querySelector('input[name=dur][value=time]').checked = true; });
+
+$('unlock-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  state = await loadState();
+  if (!parentAuthed) {
+    const res = await verifyPin(state, $('unlock-pin').value);
+    if (!res.ok) {
+      $('unlock-error').textContent = res.wait ? `Too many tries. Wait ${res.wait} seconds.` : 'Wrong PIN.';
+      $('unlock-pin').value = '';
+      return;
+    }
+  }
+  const choice = document.querySelector('input[name=dur]:checked').value;
+  const until = unlockUntil(choice, $('unlock-time').value);
+  if (!until) { $('unlock-error').textContent = 'Pick a time.'; return; }
+  state.lock = { unlockedUntil: until, mode: 'parent' };
+  await save();
+  closeUnlock();
+  toast(`Browser ${choice === 'forever' ? 'unlocked until you lock it again' : unlockText(lockStatus(state)).replace(/^Unlocked/, 'unlocked')}`, '🔓');
+  renderLockChip();
+  if (document.body.dataset.view === 'parent') renderParent();
+});
+
+async function lockNow() {
   state.lock = { unlockedUntil: 0, mode: 'locked' };
   await save();
   toast('Browser locked', '🔒');
-  renderParent(); renderLockChip();
-});
+  renderLockChip();
+  if (document.body.dataset.view === 'parent') renderParent();
+}
+$('lock-now').addEventListener('click', lockNow);
+$('relock-btn').addEventListener('click', lockNow);
 
 $('settings-form').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -517,7 +635,7 @@ function frame() {
 // While locked, keep a single copy of the app: a new tab that finds an older app
 // tab focuses it and closes itself.
 async function closeIfDuplicate() {
-  if (location.hash === '#parent' || !lockStatus(state).locked || typeof chrome === 'undefined' || !chrome.tabs) return false;
+  if (location.hash === '#parent' || location.hash === '#unlock' || !lockStatus(state).locked || typeof chrome === 'undefined' || !chrome.tabs) return false;
   const self = await chrome.tabs.getCurrent();
   if (!self) return false;
   const appUrl = chrome.runtime.getURL('app.html');
@@ -536,9 +654,11 @@ async function boot() {
   state = await loadState();
   if (await closeIfDuplicate()) return;
   if (!state.parent?.pinHash) return show('setup');
-  if (location.hash === '#parent') {
+  if (location.hash === '#parent' || location.hash === '#unlock') {
+    const wantUnlock = location.hash === '#unlock';
     history.replaceState(null, '', location.pathname);
-    show('parent');
+    show(wantUnlock ? 'home' : 'parent');
+    if (wantUnlock) openUnlock();
     setInterval(renderLockChip, 30000);
     return;
   }
