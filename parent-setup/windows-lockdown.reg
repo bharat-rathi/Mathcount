@@ -1,0 +1,20 @@
+Windows Registry Editor Version 5.00
+
+; MATHCOUNTS Daily Coach — Chrome lockdown for Windows.
+; Double-click to apply (needs admin). Undo with windows-undo.reg.
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Google\Chrome]
+"IncognitoModeAvailability"=dword:00000001
+"BrowserGuestModeEnabled"=dword:00000000
+"BrowserAddPersonEnabled"=dword:00000000
+"DeveloperToolsAvailability"=dword:00000002
+"ExtensionDeveloperModeSettings"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Google\Chrome\URLBlocklist]
+"1"="chrome://extensions"
+"2"="chrome://settings"
+"3"="chrome://flags"
+"4"="chrome://inspect"
+"5"="chrome://policy"
+"6"="chromewebstore.google.com"
+"7"="chrome.google.com/webstore"

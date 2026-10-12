@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Math Coach</title>
+  <link rel="icon" href="icons/icon32.png">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <canvas id="confetti" aria-hidden="true"></canvas>
+
+  <header class="topbar">
+    <button class="brand" data-go="home" title="Home">
+      <img src="icons/icon48.png" alt=""> <span>MATHCOUNTS Daily Coach</span>
+    </button>
+    <nav>
+      <span id="lock-chip" class="chip"></span>
+      <button class="ghost" data-go="badges">🏅 Badges</button>
+      <button class="ghost" data-go="parent">👪 Parent</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- First-run setup (done by the parent) -->
+    <section id="view-setup" class="view card narrow" hidden>
+      <h1>Welcome! 👋</h1>
+      <p class="muted">Parent setup — takes 30 seconds. Your child won't need to do this.</p>
+      <form id="setup-form" class="stack">
+        <label>Mathlete's first name <input id="setup-name" required maxlength="30" autocomplete="off"></label>
+        <label>Parent PIN (4–8 digits) <input id="setup-pin" type="password" inputmode="numeric" pattern="\d{4,8}" required></label>
+        <label>Confirm PIN <input id="setup-pin2" type="password" inputmode="numeric" pattern="\d{4,8}" required></label>
+        <p class="error" id="setup-error"></p>
+        <button class="primary big" type="submit">Start coaching</button>
+      </form>
+      <p class="small muted">The PIN is what unlocks the browser and changes settings. Keep it private.</p>
+    </section>
+
+    <!-- Dashboard -->
+    <section id="view-home" class="view" hidden>
+      <div class="hero card">
+        <div>
+          <h1 id="greeting"></h1>
+          <p id="today-msg" class="muted"></p>
+        </div>
+        <div class="hero-actions">
+          <button id="start-daily" class="primary big"></button>
+          <button id="start-extra" class="secondary" hidden>➕ Extra practice (weakest topics)</button>
+        </div>
+      </div>
+
+      <div class="stats">
+        <div class="stat card"><div class="stat-icon">🔥</div><div><div class="stat-num" id="st-day"></div><div class="stat-label">day streak <span class="muted" id="st-day-best"></span></div></div></div>
+        <div class="stat card"><div class="stat-icon">🎯</div><div><div class="stat-num" id="st-correct"></div><div class="stat-label">correct in a row <span class="muted" id="st-correct-best"></span></div></div></div>
+        <div class="stat card"><div class="stat-icon">✅</div><div><div class="stat-num" id="st-total"></div><div class="stat-label">problems solved</div></div></div>
+        <div class="stat card rank"><div class="stat-icon" id="rank-icon"></div><div class="grow"><div class="stat-num small-num" id="rank-name"></div><div class="bar"><div id="rank-bar"></div></div><div class="stat-label" id="rank-next"></div></div></div>
+      </div>
+
+      <div class="card">
+        <div class="row-between"><h2>Last 4 weeks</h2><span class="small muted">each square = a day · green = daily set done</span></div>
+        <div id="calendar" class="calendar"></div>
+      </div>
+
+      <div class="card">
+        <div class="row-between"><h2>Topic mastery</h2><span class="small muted">Level ★ goes up after 3 right in a row</span></div>
+        <div id="topics" class="topics"></div>
+      </div>
+    </section>
+
+    <!-- Quiz -->
+    <section id="view-quiz" class="view narrow" hidden>
+      <div class="quiz-head">
+        <div id="dots" class="dots"></div>
+        <div class="quiz-meta"><span id="q-timer" class="chip">0:00</span></div>
+      </div>
+      <div class="card qcard">
+        <div class="row-between">
+          <span id="q-topic" class="chip topic-chip"></span>
+          <span id="q-level" class="level"></span>
+        </div>
+        <p id="q-review" class="review-tag" hidden>🔁 Redemption round — you missed this kind of problem before. Show it who's boss!</p>
+        <div id="q-text" class="qtext"></div>
+        <p id="q-form" class="qform"></p>
+        <form id="answer-form" class="answer-row" autocomplete="off">
+          <input id="answer" aria-label="Your answer" placeholder="Your answer" spellcheck="false">
+          <span id="q-unit" class="unit"></span>
+          <button class="primary" type="submit" id="submit-btn">Check</button>
+        </form>
+        <div class="keys" id="keys">
+          <button type="button" data-ins="/">a/b</button>
+          <button type="button" data-ins="√">√</button>
+          <button type="button" data-ins="π">π</button>
+          <button type="button" data-ins="-">−</button>
+          <span class="small muted">Fractions: 3/4 · Radicals: 5√3 · Pi: 16π</span>
+        </div>
+
+        <div id="feedback" hidden>
+          <div id="fb-banner" class="banner"></div>
+          <div id="fb-wrong" hidden>
+            <div class="answers-compare">
+              <div><span class="small muted">You answered</span><div id="fb-yours" class="ans bad"></div></div>
+              <div><span class="small muted">Correct answer</span><div id="fb-right" class="ans good"></div></div>
+            </div>
+            <h3>🤔 What went wrong</h3>
+            <div id="fb-why"></div>
+          </div>
+          <h3 id="fb-steps-title">🪜 Simplest way to solve it</h3>
+          <ol id="fb-steps" class="steps"></ol>
+          <div class="tip"><strong>💡 Do it better next time:</strong> <span id="fb-tip"></span></div>
+          <button id="next-btn" class="primary big">Next →</button>
+        </div>
+      </div>
+      <p class="center small muted">Use scratch paper. No calculator — just like the Sprint Round.</p>
+    </section>
+
+    <!-- Session summary -->
+    <section id="view-summary" class="view narrow" hidden>
+      <div class="card center">
+        <div id="sum-emoji" class="huge"></div>
+        <h1 id="sum-title"></h1>
+        <p id="sum-sub" class="muted"></p>
+        <div id="sum-pills" class="pills"></div>
+        <div id="sum-badges" class="new-badges"></div>
+        <div class="hero-actions centered">
+          <button class="primary" data-go="home">🏠 Home</button>
+          <button class="secondary" id="sum-extra">➕ Extra practice</button>
+        </div>
+      </div>
+      <div class="card" id="sum-review-card">
+        <h2>Review your misses</h2>
+        <p class="small muted">Read each one again — tomorrow you'll get a fresh problem of the same type.</p>
+        <div id="sum-review"></div>
+      </div>
+    </section>
+
+    <!-- Badges -->
+    <section id="view-badges" class="view" hidden>
+      <div class="card">
+        <h2>Achievements</h2>
+        <div id="badge-grid" class="badge-grid"></div>
+      </div>
+      <div class="card">
+        <h2>Topic medals</h2>
+        <p class="small muted" id="tier-rules"></p>
+        <div id="medal-grid" class="medal-grid"></div>
+      </div>
+    </section>
+
+    <!-- Parent -->
+    <section id="view-parent" class="view" hidden>
+      <div id="parent-gate" class="card narrow">
+        <h2>👪 Parent area</h2>
+        <form id="pin-form" class="row">
+          <input id="pin-input" type="password" inputmode="numeric" placeholder="Parent PIN" autocomplete="off">
+          <button class="primary" type="submit">Enter</button>
+        </form>
+        <p class="error" id="pin-error"></p>
+      </div>
+
+      <div id="parent-panel" hidden>
+        <div class="card">
+          <div class="row-between"><h2>Browser lock</h2><span id="parent-lock-state" class="chip"></span></div>
+          <p class="small muted">While locked, every website is blocked except the sites you allow below. Searching and AI/answer sites stay blocked even when unlocked (unless you change that below).</p>
+          <div class="row wrap">
+            <button class="secondary" data-unlock="15">Unlock 15 min</button>
+            <button class="secondary" data-unlock="30">Unlock 30 min</button>
+            <button class="secondary" data-unlock="60">Unlock 1 hour</button>
+            <button class="secondary" data-unlock="180">Unlock 3 hours</button>
+            <button class="danger" id="lock-now">🔒 Lock now</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Progress report — <span id="report-name"></span></h2>
+          <div id="report-summary" class="pills"></div>
+          <div class="table-wrap"><table id="report-table"></table></div>
+          <h3>Last 14 days</h3>
+          <div class="table-wrap"><table id="days-table"></table></div>
+        </div>
+
+        <div class="card">
+          <h2>Settings</h2>
+          <form id="settings-form" class="stack">
+            <label>Questions per daily set <input id="set-count" type="number" min="5" max="30"></label>
+            <label><span>Reward: unlock browsing for this many minutes after the daily set is finished (0 = stay locked)</span>
+              <input id="set-reward" type="number" min="0" max="240"></label>
+            <label><span>Always-allowed websites (one per line, e.g. <code>classroom.google.com</code>)</span>
+              <textarea id="set-allow" rows="4" spellcheck="false"></textarea></label>
+            <label class="check"><input id="set-search" type="checkbox"> Keep search engines, AI chatbots and answer sites blocked even when unlocked</label>
+            <button class="primary" type="submit">Save settings</button>
+            <span id="settings-saved" class="small good-text"></span>
+          </form>
+        </div>
+
+        <div class="card">
+          <h2>Account</h2>
+          <div class="row wrap">
+            <button class="secondary" id="export-btn">⬇️ Export progress (JSON)</button>
+            <button class="secondary" id="change-pin-btn">🔑 Change PIN</button>
+            <button class="danger" id="reset-btn">Reset all progress</button>
+            <button class="ghost" id="parent-exit">Leave parent area</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

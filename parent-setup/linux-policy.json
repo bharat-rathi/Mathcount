@@ -1,0 +1,16 @@
+{
+  "IncognitoModeAvailability": 1,
+  "BrowserGuestModeEnabled": false,
+  "BrowserAddPersonEnabled": false,
+  "DeveloperToolsAvailability": 2,
+  "ExtensionDeveloperModeSettings": 0,
+  "URLBlocklist": [
+    "chrome://extensions",
+    "chrome://settings",
+    "chrome://flags",
+    "chrome://inspect",
+    "chrome://policy",
+    "chromewebstore.google.com",
+    "chrome.google.com/webstore"
+  ]
+}

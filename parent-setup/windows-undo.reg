@@ -1,0 +1,4 @@
+Windows Registry Editor Version 5.00
+
+; Removes every Chrome policy set by windows-lockdown.reg.
+[-HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Google\Chrome]

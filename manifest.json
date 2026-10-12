@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "MATHCOUNTS Daily Coach",
+  "short_name": "Math Coach",
+  "version": "1.0.0",
+  "description": "Daily adaptive MATHCOUNTS practice with streaks and badges. Locks the browser until practice is done.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvSdZXQoS1QCn6p1kfAoS6FhM3JLYaBxw1uRpJNwMDHILqM0ANDqvrPUjX5nuz22tNdxktj4TGjC/PMM5uyEhv3HvuiIuZNOOokhyNC1Od9SDK3NQvY1HKzMtpDq5p62oetvhASoWRDpdUNAL4vS0ZUk5o8WfkQ19JdmxDhMxyI4LEmlzolV48GKnOpbtgkYFcwdCvohJOFTAilzYrI74nQmgfZNFpoVnXiwXsgIsjjDE82J4ZX8xcMxOXotKsPs6VfwN9RZOUQibrbqNZvSx0WWwntkBOBN2BcvTeaSrIq2FDdguquUnA0eC/aZhBltnxP6ocOda1Opn+sqJSkni2QIDAQAB",
+  "minimum_chrome_version": "116",
+  "icons": { "16": "icons/icon16.png", "32": "icons/icon32.png", "48": "icons/icon48.png", "128": "icons/icon128.png" },
+  "action": { "default_title": "MATHCOUNTS Daily Coach" },
+  "background": { "service_worker": "background.js", "type": "module" },
+  "chrome_url_overrides": { "newtab": "app.html" },
+  "permissions": ["storage", "declarativeNetRequest", "tabs", "alarms"],
+  "host_permissions": ["<all_urls>"],
+  "incognito": "spanning",
+  "web_accessible_resources": [{ "resources": ["blocked.html", "blocked.js", "app.css"], "matches": ["<all_urls>"] }]
+}
