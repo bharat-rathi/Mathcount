@@ -31,9 +31,10 @@
         <label>Parent PIN (4–8 digits) <input id="setup-pin" type="password" inputmode="numeric" pattern="\d{4,8}" required></label>
         <label>Confirm PIN <input id="setup-pin2" type="password" inputmode="numeric" pattern="\d{4,8}" required></label>
         <p class="error" id="setup-error"></p>
+        <p class="small warn-box">⚠️ When you click Start, Chrome locks: <b>all other open tabs will close</b> and only this practice app stays. Save anything you're working on first.</p>
         <button class="primary big" type="submit">Start coaching</button>
       </form>
-      <p class="small muted">The PIN is what unlocks the browser and changes settings. Keep it private.</p>
+      <p class="small muted">After the 10 daily questions, browsing unlocks for the rest of the day (you can change this in the Parent area). The PIN unlocks the browser any time. Keep it private.</p>
     </section>
 
     <!-- Dashboard -->
@@ -182,8 +183,14 @@
           <h2>Settings</h2>
           <form id="settings-form" class="stack">
             <label>Questions per daily set <input id="set-count" type="number" min="5" max="30"></label>
-            <label><span>Reward: unlock browsing for this many minutes after the daily set is finished (0 = stay locked)</span>
-              <input id="set-reward" type="number" min="0" max="240"></label>
+            <label><span>When today's set is finished</span>
+              <select id="set-after">
+                <option value="day">Unlock the browser for the rest of the day (locks again at midnight)</option>
+                <option value="minutes">Unlock the browser for a set number of minutes</option>
+                <option value="locked">Keep it locked (a parent unlocks with the PIN)</option>
+              </select></label>
+            <label id="set-reward-row"><span>Minutes of browsing</span>
+              <input id="set-reward" type="number" min="5" max="240"></label>
             <label><span>Always-allowed websites (one per line, e.g. <code>classroom.google.com</code>)</span>
               <textarea id="set-allow" rows="4" spellcheck="false"></textarea></label>
             <label class="check"><input id="set-search" type="checkbox"> Keep search engines, AI chatbots and answer sites blocked even when unlocked</label>

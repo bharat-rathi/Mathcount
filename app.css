@@ -177,3 +177,6 @@ th { color: var(--muted); font-weight: 600; }
   .answer-row { flex-wrap: wrap; }
   .answer-row input { max-width: none; flex: 1; }
 }
+select { font: inherit; padding: 0.6em 0.8em; border: 2px solid var(--line); border-radius: 10px; background: #fff; color: var(--ink); width: 100%; }
+.warn-box { background: #fff4e0; color: #7a4a00; border-radius: 10px; padding: 10px 12px; margin: 0; }
+label[hidden] { display: none !important; }

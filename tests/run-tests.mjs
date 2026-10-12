@@ -2,7 +2,8 @@
 import assert from 'node:assert/strict';
 import { TOPICS, generateQuestion } from '../lib/topics.js';
 import { checkAnswer, specToString, specValue, matchesValue } from '../lib/answers.js';
-import { newState, startSession, gradeCurrent, advance, finishSession, liveDayStreak, buildDailySet } from '../lib/engine.js';
+import { newState, startSession, gradeCurrent, advance, finishSession, liveDayStreak, buildDailySet, dailyUnlock } from '../lib/engine.js';
+import { lockStatus } from '../lib/blocking.js';
 import { makeRng } from '../lib/mathutil.js';
 
 let failures = 0;
@@ -123,6 +124,25 @@ const wrong = q0.mistakes[0].value;
 const { result } = gradeCurrent(st2, specToString(wrong));
 assert.equal(result.correct, false);
 assert.ok(result.why[0].includes('diameter'), 'should explain the radius/diameter mistake');
+
+// ── Lock rules
+{
+  const st = newState();
+  assert.equal(lockStatus(st).locked, false, 'no lock before the parent sets a PIN');
+  st.parent.pinHash = 'x';
+  assert.equal(lockStatus(st).locked, true, 'locked once setup is done');
+  const now = new Date(2026, 9, 12, 16, 30).getTime();
+  const u = dailyUnlock(st, now);
+  assert.equal(u.unlockedUntil, new Date(2026, 9, 13, 0, 0).getTime(), 'default: unlocked until midnight');
+  st.lock = u;
+  assert.equal(lockStatus(st, now + 3600000).locked, false);
+  assert.equal(lockStatus(st, u.unlockedUntil + 1).locked, true, 'locks again after midnight');
+  st.lock = { unlockedUntil: 0 };
+  st.settings.afterDaily = 'minutes'; st.settings.rewardUnlockMinutes = 45;
+  assert.equal(dailyUnlock(st, now).unlockedUntil, now + 45 * 60000);
+  st.settings.afterDaily = 'locked';
+  assert.equal(dailyUnlock(st, now), null);
+}
 
 console.log(`${generated} questions generated across ${TOPICS.length} topics / ${TOPICS.reduce((a, t) => a + t.variants.length, 0)} variants`);
 if (failures) { console.error(`${failures} failures`); process.exit(1); }

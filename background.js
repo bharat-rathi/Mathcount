@@ -34,12 +34,37 @@ async function doApplyLock() {
   await chrome.alarms.clear('relock');
   if (!current.locked) chrome.alarms.create('relock', { when: current.until + 500 });
 
-  // Sweep tabs that are already open.
+  await sweepTabs();
+}
+
+// The practice app shows up either as app.html or as Chrome's new-tab page (which it replaces).
+function isAppTab(tab) {
+  const url = tab.pendingUrl || tab.url || '';
+  return url.startsWith(APP_URL) || url.startsWith('chrome://newtab');
+}
+
+// Tabs that were open before the lock (or slipped past it) are closed, and the
+// practice app is left as the single tab to use — instead of turning every old
+// tab into its own "locked" page.
+async function sweepTabs() {
+  if (!current.locked) return;
   const tabs = await chrome.tabs.query({});
-  for (const tab of tabs) {
-    const url = tab.pendingUrl || tab.url;
-    if (!isUrlAllowed(url, current, ORIGIN)) redirect(tab.id);
+  const bad = tabs.filter((t) => !isUrlAllowed(t.pendingUrl || t.url, current, ORIGIN));
+  if (!bad.length) return;
+  const app = tabs.find(isAppTab);
+  let close = bad;
+  if (!app) {
+    // Reuse one of the tabs for the app so the window doesn't close.
+    await chrome.tabs.update(bad[0].id, { url: APP_URL, active: true }).catch(() => {});
+    close = bad.slice(1);
   }
+  if (close.length) await chrome.tabs.remove(close.map((t) => t.id)).catch(() => {});
+  if (app) await focusTab(app);
+}
+
+async function focusTab(tab) {
+  await chrome.tabs.update(tab.id, { active: true }).catch(() => {});
+  await chrome.windows.update(tab.windowId, { focused: true }).catch(() => {});
 }
 
 function redirect(tabId) {
@@ -47,13 +72,10 @@ function redirect(tabId) {
 }
 
 async function openApp() {
-  const tabs = await chrome.tabs.query({ url: APP_URL + '*' });
-  if (tabs.length) {
-    await chrome.tabs.update(tabs[0].id, { active: true });
-    await chrome.windows.update(tabs[0].windowId, { focused: true });
-  } else {
-    await chrome.tabs.create({ url: APP_URL });
-  }
+  const tabs = await chrome.tabs.query({});
+  const app = tabs.find(isAppTab);
+  if (app) await focusTab(app);
+  else await chrome.tabs.create({ url: APP_URL });
 }
 
 chrome.tabs.onUpdated.addListener((tabId, info, tab) => {

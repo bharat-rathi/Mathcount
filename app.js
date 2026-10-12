@@ -1,7 +1,7 @@
 import { TOPICS, TOPIC_BY_ID } from './lib/topics.js';
 import {
   dateKey, startSession, gradeCurrent, advance, finishSession, liveDayStreak, rankFor,
-  GLOBAL_BADGES, TIERS, TIER_RULES, topicTier, recentAccuracy, weakestTopics, newState,
+  GLOBAL_BADGES, TIERS, TIER_RULES, topicTier, recentAccuracy, weakestTopics, newState, dailyUnlock,
 } from './lib/engine.js';
 import { loadState, saveState, setPin, verifyPin } from './lib/store.js';
 import { lockStatus, cleanDomain } from './lib/blocking.js';
@@ -46,11 +46,20 @@ function renderLockChip() {
   if (st.locked) {
     chip.textContent = '🔒 Browser locked';
     chip.className = 'chip locked';
+  } else if (st.mode === 'setup') {
+    chip.textContent = '⚙️ Setup — not locked yet';
+    chip.className = 'chip';
   } else {
-    const t = new Date(st.until).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-    chip.textContent = `🔓 ${st.mode === 'reward' ? 'Reward time' : 'Unlocked'} until ${t}`;
+    chip.textContent = `🔓 ${unlockText(st)}`;
     chip.className = 'chip unlocked';
   }
+}
+
+function unlockText(st) {
+  const midnight = new Date(); midnight.setHours(24, 0, 0, 0);
+  if (st.until === midnight.getTime()) return 'Unlocked for the rest of today';
+  const t = new Date(st.until).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return `${st.mode === 'reward' ? 'Reward time' : 'Unlocked'} until ${t}`;
 }
 
 // ───────────────────────────── Setup
@@ -81,7 +90,8 @@ function renderHome() {
 
   const streak = liveDayStreak(state, today);
   if (doneToday) {
-    $('today-msg').textContent = `Today's set is done — ${state.days[today].correct}/${state.days[today].total} correct. 🎉 Come back tomorrow to keep your ${streak}-day streak going!`;
+    const st = lockStatus(state);
+    $('today-msg').textContent = `Today's set is done — ${state.days[today].correct}/${state.days[today].total} correct. 🎉 ${st.locked ? '' : `${unlockText(st)} — enjoy! `}Come back tomorrow to keep your ${streak}-day streak going!`;
     $('start-daily').textContent = '✅ Done for today';
     $('start-daily').disabled = true;
     $('start-extra').hidden = false;
@@ -285,9 +295,12 @@ $('next-btn').addEventListener('click', async () => {
   const done = advance(state);
   if (done) {
     const events = finishSession(state);
-    if (state.session.kind === 'daily' && events.streakExtended && state.settings.rewardUnlockMinutes > 0 && lockStatus(state).locked) {
-      state.lock = { unlockedUntil: Date.now() + state.settings.rewardUnlockMinutes * 60000, mode: 'reward' };
-      events.reward = state.settings.rewardUnlockMinutes;
+    if (state.session.kind === 'daily' && events.streakExtended) {
+      const unlock = dailyUnlock(state);
+      if (unlock) {
+        state.lock = { unlockedUntil: unlock.unlockedUntil, mode: 'reward' };
+        events.reward = unlock.kind === 'day' ? 'for the rest of today' : `for ${state.settings.rewardUnlockMinutes} minutes`;
+      }
     }
     await save();
     renderSummary(events);
@@ -312,7 +325,7 @@ function renderSummary(ev) {
   pills.push(`🎯 ${state.streaks.correct.current} correct in a row`);
   const avg = Math.round(s.results.reduce((a, r) => a + r.seconds, 0) / s.results.length);
   pills.push(`⏱ ${avg}s per question`);
-  if (ev.reward) pills.push(`🔓 ${ev.reward} min of reward browsing unlocked`);
+  if (ev.reward) pills.push(`🔓 Browser unlocked ${ev.reward}`);
   $('sum-pills').innerHTML = pills.map((p) => `<span class="pill">${p}</span>`).join('');
   $('sum-badges').innerHTML = ev.badges.map((b) => `<div class="badge earned"><div class="bicon">${b.icon}</div><div><b>${esc(b.name)}</b><div class="small muted">${esc(b.desc)}</div></div></div>`).join('');
 
@@ -384,7 +397,9 @@ function renderParent() {
     days.map((k) => { const d = state.days[k]; return `<tr><td>${k}</td><td>${d?.completed ? '✅' : '—'}</td><td>${d ? `${d.correct}/${d.total}` : ''}</td><td>${d?.minutes ?? ''}</td></tr>`; }).join('');
 
   $('set-count').value = state.settings.questionsPerDay;
+  $('set-after').value = state.settings.afterDaily;
   $('set-reward').value = state.settings.rewardUnlockMinutes;
+  $('set-reward-row').hidden = state.settings.afterDaily !== 'minutes';
   $('set-allow').value = state.settings.allowlist.join('\n');
   $('set-search').checked = state.settings.blockSearchWhenUnlocked !== false;
   $('settings-saved').textContent = '';
@@ -424,7 +439,8 @@ $('settings-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   if (!parentAuthed) return;
   state.settings.questionsPerDay = Math.min(30, Math.max(5, Number($('set-count').value) || 10));
-  state.settings.rewardUnlockMinutes = Math.min(240, Math.max(0, Number($('set-reward').value) || 0));
+  state.settings.afterDaily = $('set-after').value;
+  state.settings.rewardUnlockMinutes = Math.min(240, Math.max(5, Number($('set-reward').value) || 60));
   state.settings.allowlist = [...new Set($('set-allow').value.split(/[\s,]+/).map(cleanDomain).filter(Boolean))];
   state.settings.blockSearchWhenUnlocked = $('set-search').checked;
   await save();
@@ -498,9 +514,34 @@ function frame() {
 
 // ───────────────────────────── Boot
 
+// While locked, keep a single copy of the app: a new tab that finds an older app
+// tab focuses it and closes itself.
+async function closeIfDuplicate() {
+  if (location.hash === '#parent' || !lockStatus(state).locked || typeof chrome === 'undefined' || !chrome.tabs) return false;
+  const self = await chrome.tabs.getCurrent();
+  if (!self) return false;
+  const appUrl = chrome.runtime.getURL('app.html');
+  const tabs = await chrome.tabs.query({});
+  const older = tabs.find((t) => t.id < self.id && ((t.pendingUrl || t.url || '').startsWith(appUrl) || (t.pendingUrl || t.url || '').startsWith('chrome://newtab')));
+  if (!older) return false;
+  await chrome.tabs.update(older.id, { active: true });
+  await chrome.windows.update(older.windowId, { focused: true });
+  window.close();
+  return true;
+}
+
+$('set-after').addEventListener('change', () => { $('set-reward-row').hidden = $('set-after').value !== 'minutes'; });
+
 async function boot() {
   state = await loadState();
+  if (await closeIfDuplicate()) return;
   if (!state.parent?.pinHash) return show('setup');
+  if (location.hash === '#parent') {
+    history.replaceState(null, '', location.pathname);
+    show('parent');
+    setInterval(renderLockChip, 30000);
+    return;
+  }
   const s = state.session;
   if (s && !s.finished && (s.kind === 'extra' || s.date === dateKey())) {
     show('quiz');
