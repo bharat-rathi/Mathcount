@@ -1,0 +1,9 @@
+Windows Registry Editor Version 5.00
+
+; Mathlete Daily Coach — install from the Chrome Web Store and stop it from being removed or turned off.
+; 1. Replace REPLACE_WITH_STORE_ID below with the 32-letter ID from your Web Store listing URL.
+; 2. Double-click this file (needs admin), then restart Chrome.
+; Undo: windows-undo.reg
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Google\Chrome\ExtensionInstallForcelist]
+"1"="REPLACE_WITH_STORE_ID;https://clients2.google.com/service/update2/crx"

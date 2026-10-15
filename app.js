@@ -329,7 +329,7 @@ function renderSummary(ev) {
   pills.push(`⭐ +${state.xp - (s.xpStart ?? state.xp)} XP`);
   pills.push(`🎯 ${state.streaks.correct.current} correct in a row`);
   const avg = Math.round(s.results.reduce((a, r) => a + r.seconds, 0) / s.results.length);
-  pills.push(`⏱ ${avg}s per question`);
+  if (avg >= 3) pills.push(`⏱ ${avg}s per question`);
   if (ev.reward) pills.push(`🔓 Browser unlocked ${ev.reward}`);
   $('sum-pills').innerHTML = pills.map((p) => `<span class="pill">${p}</span>`).join('');
   $('sum-badges').innerHTML = ev.badges.map((b) => `<div class="badge earned"><div class="bicon">${b.icon}</div><div><b>${esc(b.name)}</b><div class="small muted">${esc(b.desc)}</div></div></div>`).join('');
@@ -653,6 +653,7 @@ $('set-after').addEventListener('change', () => { $('set-reward-row').hidden = $
 async function boot() {
   state = await loadState();
   if (await closeIfDuplicate()) return;
+  renderLockChip();
   if (!state.parent?.pinHash) return show('setup');
   if (location.hash === '#parent' || location.hash === '#unlock') {
     const wantUnlock = location.hash === '#unlock';

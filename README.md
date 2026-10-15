@@ -1,13 +1,16 @@
-# MATHCOUNTS Daily Coach (Chrome extension)
+# Mathlete Daily Coach (Chrome extension)
 
-A Chrome extension that gives a Mathlete **10 MATHCOUNTS-style problems a day**, chosen
+A Chrome extension that gives a Mathlete **10 math-competition problems a day**, chosen
 for the topics they most need to work on. It explains every miss and turns practice
 into a streak game. While it's running, **Chrome is locked to the practice app**.
 
+Built for students preparing for competitions such as MATHCOUNTS®. It is an independent project and
+is not affiliated with or endorsed by MATHCOUNTS.
+
 ## What it does
 
-**Daily set of 10 problems.** 19 topics in the MATHCOUNTS mix (Sprint/Target/Team
-rounds): order of operations, fractions, percents, ratios, rates & work, divisors/GCF/LCM,
+**Daily set of 10 problems.** 19 topics in the usual middle-school competition mix (sprint, target and
+team rounds): order of operations, fractions, percents, ratios, rates & work, divisors/GCF/LCM,
 primes & units digits, arithmetic sequences, equations & word problems, exponents &
 radicals, custom operations, counting, probability, Venn diagrams, area & perimeter,
 circles, Pythagorean theorem, angles & polygons, and mean/median/mode. That's 150 problem
@@ -31,14 +34,14 @@ types. Each problem gets fresh numbers every time, so there's no running out and
 3. **💡 Do it better next time:** a faster method or habit (complementary counting,
    "pretend it's $100", the 3-4-5 triples, etc.).
 
-It also enforces the official **MATHCOUNTS Forms of Answers**: a right value in the wrong form
+It also enforces competition **answer-form rules**: a right value in the wrong form
 (6/8 instead of 3/4, 0.75 when a common fraction is asked, √75 instead of 5√3, or 50.27 instead
 of 16π) is marked wrong, with an explanation of the rule.
 
 **Gamified.**
 - 🔥 Day streak (and best streak)
 - 🎯 Correct-in-a-row streak that **carries across days**
-- ⭐ XP and ranks: Rookie → Problem Solver → Mathlete → Sprint Star → … → MATHCOUNTS Legend
+- ⭐ XP and ranks: Rookie → Problem Solver → Mathlete → Sprint Star → … → Mathlete Legend
 - 🥉🥈🥇 **Topic medals** (Bronze, Silver, Gold) for improving in each topic
 - 🏅 Achievements: 3/7/14/30/100-day streaks, 10/25/50/100 correct in a row, Perfect 10,
   Sprint Ready (perfect and under 60 s per question), Comeback Kid (weak topic raised to 80%), Explorer, and more
@@ -76,11 +79,15 @@ Parent → enter PIN → **📊 Dashboard**:
 
 ## Install (5 minutes, done by a parent)
 
+**Once it's in the Chrome Web Store:** open the listing link, click **Add to Chrome**, and skip to step 4.
+It then updates itself, and the force-install policy (below) can stop it from being removed.
+
+Without the store (loading the code directly):
+
 1. Copy the `Mathcount` folder somewhere permanent on the laptop
    (e.g. `C:\MathCoach` or `~/MathCoach`). Chrome loads it from there, so don't delete it.
 2. In Chrome, open `chrome://extensions` and turn on **Developer mode** (top right).
 3. Click **Load unpacked** and choose the `Mathcount` folder.
-   The extension ID should be `hnmanhjpcnfkocpbjblblnfldidholhc`.
 4. The app opens. Nothing is locked yet. Enter your child's name and a **parent PIN**, then click Start.
    Chrome locks at that moment and **closes your other tabs**, so save your work first.
 5. Apply the lockdown policy below. Without it, a curious kid can just turn the extension
@@ -109,6 +116,14 @@ version is disabling unpacked extensions while Developer Tools are off. Fix it b
 **To update or remove the extension later:** run the undo file, restart Chrome, make your change at
 `chrome://extensions`, then apply the lockdown again.
 
+### Force-install from the Web Store (strongest)
+
+After the extension is published, put its store ID (the 32 letters at the end of the listing URL) into
+`parent-setup/windows-force-install.reg` (or run `sudo bash parent-setup/mac-force-install.sh <ID>`, or edit
+`linux-force-install.json`) and apply it. Chrome then installs it automatically, keeps it updated, and
+won't let it be removed or turned off. Check `chrome://policy` lists `ExtensionInstallForcelist`.
+With force-install you don't need Developer mode, so the `DeveloperToolsAvailability` caveat goes away.
+
 ## About "block everything else on the laptop"
 
 A Chrome extension can only control **Chrome**. It can't stop other browsers (Edge, Safari),
@@ -135,18 +150,21 @@ Make sure your child's OS account is **not an administrator**. Otherwise they ca
 ## Files
 
 ```
-manifest.json        Manifest V3 (fixed "key" → stable extension ID for the policy files)
+manifest.json        Manifest V3
 background.js        Lock: declarativeNetRequest rules + tab watchdog + relock alarm
 app.html/.css/.js    The practice app (also replaces the new-tab page)
 blocked.html/.js     Page shown in place of blocked sites
 lib/topics.js        19 topics and their core problem generators (steps, tips, common mistakes)
 lib/topics-more.js   66 more problem types, 3–4 per topic
 lib/qhelpers.js      Shared answer/formatting helpers for the generators
-lib/answers.js       Answer parsing and checking (MATHCOUNTS Forms of Answers)
+lib/answers.js       Answer parsing and checking (competition answer-form rules)
 lib/engine.js        Mastery, adaptive selection, streaks, XP, badges
 lib/blocking.js      Allow/deny logic and network rules
 lib/store.js         chrome.storage + salted SHA-256 parent PIN (with lockout after 5 wrong tries)
-parent-setup/        Chrome policy files for Windows / macOS / Linux
+parent-setup/        Chrome policy files for Windows / macOS / Linux (lockdown + force-install)
+store/               Web Store listing text, privacy policy and images
+docs/privacy.html    Privacy policy page to host for the store listing
+scripts/package.sh   Builds the zip to upload to the Web Store
 tests/run-tests.mjs  node tests/run-tests.mjs: generates ~100k problems and checks every one
 ```
 
@@ -158,3 +176,21 @@ Add a variant to a topic in `lib/topics.js` or `lib/topics-more.js`. `gen(rng, l
 mistakes, unit?, form? }`, then run `node tests/run-tests.mjs`. The tests generate each variant 1,200 times
 and check that the answer is accepted by the checker, the text has no `NaN`/`undefined`, and the
 solution ends with the answer in bold.
+
+## Publishing to the Chrome Web Store
+
+1. **Build the upload zip:** `bash scripts/package.sh` → `dist/mathlete-daily-coach-<version>.zip`.
+   (It runs the tests first and refuses to build if `manifest.json` has a `key` field.)
+2. **Register** at https://chrome.google.com/webstore/devconsole (one-time $5 fee).
+3. **Host the privacy policy** (`docs/privacy.html`) somewhere public and copy its URL. Either:
+   - make this repo public and turn on GitHub Pages (Settings → Pages → branch `main`, folder `/docs`),
+     giving `https://bharat-rathi.github.io/Mathcount/privacy.html`, or
+   - paste `store/PRIVACY.md` into a Google Doc and use **File → Share → Publish to web**.
+   Fill in your contact email in the policy first.
+4. **New item → upload the zip**, then fill in each tab from `store/LISTING.md`: description,
+   screenshots and promo tile from `store/images/`, the permission justifications, data-use answers
+   and reviewer instructions.
+5. Choose **Unlisted** or **Public**, then **Submit for review**. Expect a few days to two weeks,
+   because the extension can block websites and manage tabs.
+6. **Updates:** bump `version` in `manifest.json`, run `scripts/package.sh` again, and upload the new
+   zip under **Package** in the dashboard.
