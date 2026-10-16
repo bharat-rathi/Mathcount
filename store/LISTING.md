@@ -58,7 +58,7 @@ Mathlete Daily Coach is an independent project and is not affiliated with or end
 ```
 
 **Graphics** (all in `store/images/`):
-- Store icon 128×128: `icons/icon128.png`
+- Store icon 128×128: `store-icon-128.png` (96×96 artwork with transparent padding, as Google recommends)
 - Screenshots 1280×800: `screenshot-1-question.png` … `screenshot-5-unlock.png` (upload in order)
 - Small promo tile 440×280: `promo-small-440x280.png`
 
