@@ -18,43 +18,30 @@ Everything below goes into the Chrome Web Store Developer Dashboard
 
 **Description:**
 
+Paste only the text inside the box. It avoids lists of topic names and competition names,
+which the Web Store treats as keyword spam.
+
 ```
-Ten math problems a day, picked for what your child needs most — and the rest of the browser stays locked until they're done.
+Mathlete Daily Coach gives your child ten math problems a day, chosen for what they most need to practice. The rest of the browser stays locked until the day's set is done.
 
-Built for middle-schoolers preparing for math competitions such as MATHCOUNTS®, Math Kangaroo and AMC 8.
+How it works
+Each day's problems lean toward the topics your child finds hardest, bring back the kinds of problems they missed recently, and start easy before getting harder. Every problem has fresh numbers, so there is nothing to memorize.
 
-DAILY PRACTICE THAT ADAPTS
-• 150 problem types across 19 topics: fractions, percents, ratios and rates, number theory, sequences, equations, exponents and radicals, counting, probability, Venn diagrams, area, circles, right triangles, angles and statistics
-• Fresh numbers every time — no running out, no memorizing answers
-• Each day's 10 lean toward weak topics, bring back problem types missed yesterday, and run from easier to harder
-• Each topic levels up after three right in a row
+When an answer is wrong, the coach explains what went wrong, shows the simplest way to solve it step by step, and gives a tip for doing it faster next time.
 
-EVERY MISTAKE EXPLAINED
-• What went wrong — it recognizes common slips like using the diameter as the radius, adding fractions top-and-bottom, or off-by-one counting
-• The simplest way to solve it, step by step
-• A tip for doing it faster next time
-• Checks answer forms the way competitions do: fractions in lowest terms, simplified square roots, answers "in terms of π"
+Staying motivated
+Day streaks, points, ranks and badges reward steady practice and improvement.
 
-MOTIVATING
-• Day streaks and correct-answer streaks that carry across days
-• Points, ranks, topic medals (bronze, silver, gold) and achievement badges
+Focus
+While the browser is locked, websites and search are blocked. Finishing the daily problems unlocks browsing for the rest of the day, and a parent can unlock it any time with a PIN.
 
-FOCUSED
-• While locked, websites, search engines, AI chatbots and answer sites are blocked
-• Finishing the daily set unlocks browsing for the rest of the day (parents can change this)
-• Parents can unlock any time with a PIN: for 30 minutes, an hour, until a set time, or until they lock it again
+For parents
+A dashboard shows how your child is doing this week, where they are strong, where they need help, and recent mistakes worth talking through together.
 
-PARENT DASHBOARD
-• Accuracy this week vs last week, streaks and daily sets completed
-• Topics where your child is strong and where they need help, with real recent mistakes to talk through
-• Charts of daily accuracy and every topic
+Private
+Everything stays on your computer. There are no accounts, ads or tracking, and no data is sent anywhere.
 
-PRIVATE BY DESIGN
-• Everything stays on your computer. No accounts, no tracking, no ads, no data sent anywhere.
-
-Note: the lock applies to Chrome. To restrict other browsers and apps, use your computer's parental controls alongside it.
-
-Mathlete Daily Coach is an independent project and is not affiliated with or endorsed by MATHCOUNTS®.
+The lock applies to Chrome only. Use your computer's parental controls to limit other browsers and apps.
 ```
 
 **Graphics** (all in `store/images/`):
