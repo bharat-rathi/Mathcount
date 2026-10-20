@@ -551,6 +551,13 @@ async function lockNow() {
   if (document.body.dataset.view === 'parent') renderParent();
 }
 $('lock-now').addEventListener('click', lockNow);
+
+$('remove-ext').addEventListener('click', () => {
+  if (!parentAuthed) return;
+  // Chrome shows its own "Remove extension?" confirmation. This works even when
+  // chrome://extensions is blocked by the lockdown policy.
+  chrome.management.uninstallSelf({ showConfirmDialog: true }).catch((e) => toast(`Couldn't remove: ${e.message}`, '⚠️'));
+});
 $('relock-btn').addEventListener('click', lockNow);
 
 $('settings-form').addEventListener('submit', async (e) => {
@@ -640,8 +647,11 @@ async function closeIfDuplicate() {
   if (!self) return false;
   const appUrl = chrome.runtime.getURL('app.html');
   const tabs = await chrome.tabs.query({});
-  const older = tabs.find((t) => t.id < self.id && ((t.pendingUrl || t.url || '').startsWith(appUrl) || (t.pendingUrl || t.url || '').startsWith('chrome://newtab')));
+  const isApp = (t) => (t.pendingUrl || t.url || '').startsWith(appUrl) || (t.pendingUrl || t.url || '').startsWith('chrome://newtab');
+  const older = tabs.find((t) => t.id < self.id && isApp(t));
   if (!older) return false;
+  // Never close the only tab in a window: that would close the whole window.
+  if (!tabs.some((t) => t.windowId === self.windowId && t.id !== self.id)) return false;
   await chrome.tabs.update(older.id, { active: true });
   await chrome.windows.update(older.windowId, { focused: true });
   window.close();

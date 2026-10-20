@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Mathlete Daily Coach",
   "short_name": "Mathlete Coach",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Daily math-competition practice that adapts to your child, explains every mistake, and keeps the browser locked until it is done.",
   "minimum_chrome_version": "116",
   "icons": {
