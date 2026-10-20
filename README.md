@@ -56,13 +56,16 @@ of 16π) is marked wrong, with an explanation of the rule.
 - `chrome://` pages (extensions, settings…) are blocked too, so the extension can't be turned off from
   inside Chrome.
 - The new-tab page is the practice app, and it opens whenever Chrome starts. While locked there's only ever
-  one copy: tabs open from before the lock are closed, and extra new tabs switch back to the practice tab.
+  one copy: tabs that aren't allowed switch to a "locked" page in place (nothing is closed), and an extra
+  new tab in the same window switches back to the practice tab.
 - **Parent area (PIN-protected):** a progress dashboard (below), lock controls, settings and export.
 - **Finishing the daily 10 unlocks browsing** for the rest of the day (it locks again at midnight). In the
   Parent area you can change this to a set number of minutes, or to "stay locked until a parent unlocks".
 - **🔓 Unlock button** (top bar, and on the locked page) asks for the parent PIN, then unlocks for
   30 min / 1 h / 3 h, **until a time you pick** (e.g. 8:00 PM), or until you lock it again. A **🔒 Lock**
   button (no PIN needed) ends any unlock.
+- **Remove this extension** (Parent → Lock & settings, PIN-protected) uninstalls it, even when the lockdown
+  policy blocks `chrome://extensions`.
 
 ## Parent dashboard
 
@@ -89,7 +92,7 @@ Without the store (loading the code directly):
 2. In Chrome, open `chrome://extensions` and turn on **Developer mode** (top right).
 3. Click **Load unpacked** and choose the `Mathcount` folder.
 4. The app opens. Nothing is locked yet. Enter your child's name and a **parent PIN**, then click Start.
-   Chrome locks at that moment and **closes your other tabs**, so save your work first.
+   Chrome locks at that moment: your open pages switch to a "locked" page until you unlock.
 5. Apply the lockdown policy below. Without it, a curious kid can just turn the extension
    off at `chrome://extensions` when Chrome starts.
 

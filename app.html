@@ -33,7 +33,7 @@
         <label>Parent PIN (4–8 digits) <input id="setup-pin" type="password" inputmode="numeric" pattern="\d{4,8}" required></label>
         <label>Confirm PIN <input id="setup-pin2" type="password" inputmode="numeric" pattern="\d{4,8}" required></label>
         <p class="error" id="setup-error"></p>
-        <p class="small warn-box">⚠️ When you click Start, Chrome locks: <b>all other open tabs will close</b> and only this practice app stays. Save anything you're working on first.</p>
+        <p class="small warn-box">⚠️ When you click Start, Chrome locks: <b>other websites are blocked</b> and pages you have open switch to a "locked" page until you unlock. Nothing is closed.</p>
         <button class="primary big" type="submit">Start coaching</button>
       </form>
       <p class="small muted">Not affiliated with or endorsed by MATHCOUNTS®.</p>
@@ -210,6 +210,14 @@
             <button class="primary" id="parent-unlock">🔓 Unlock…</button>
             <button class="danger" id="lock-now">🔒 Lock now</button>
           </div>
+          <p class="small muted">To switch the lock off completely, choose <b>Unlock… → Until I lock it again</b>.</p>
+        </div>
+
+        <div class="card">
+          <h2>Remove the extension</h2>
+          <p class="small muted">Uninstalls Mathlete Daily Coach from this browser and deletes all its progress. Chrome asks you to confirm.
+          This works even if the lockdown policy blocks the Extensions page. If you applied a force-install policy, undo that first.</p>
+          <button class="danger" id="remove-ext">🗑️ Remove this extension</button>
         </div>
 
         <div class="card">

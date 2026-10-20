@@ -27,7 +27,7 @@ All of the following is saved **only on your computer**, in Chrome's local exten
 - **Website access and network rules** (`declarativeNetRequest`, all-sites host access): to block websites,
   search engines and answer sites while the browser is locked, and to redirect blocked pages to the
   extension's own "locked" page. Blocking happens inside Chrome; no browsing data leaves the computer.
-- **Tabs**: to keep a single practice tab open while locked and to close or redirect tabs that are not allowed.
+- **Tabs**: to keep the practice tab in focus while locked and to switch tabs that are not allowed to the extension's "locked" page.
 - **Storage**: to save the practice history and settings listed above on your computer.
 - **Alarms**: to lock the browser again when an unlock period ends.
 

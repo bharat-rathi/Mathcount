@@ -43,23 +43,19 @@ function isAppTab(tab) {
   return url.startsWith(APP_URL) || url.startsWith('chrome://newtab');
 }
 
-// Tabs that were open before the lock (or slipped past it) are closed, and the
-// practice app is left as the single tab to use — instead of turning every old
-// tab into its own "locked" page.
+// Tabs that aren't allowed switch to the "locked" page in place. Nothing is ever
+// closed, so no window disappears. If there's no practice tab yet, the first
+// blocked tab becomes the practice app.
 async function sweepTabs() {
   if (!current.locked) return;
   const tabs = await chrome.tabs.query({});
   const bad = tabs.filter((t) => !isUrlAllowed(t.pendingUrl || t.url, current, ORIGIN));
   if (!bad.length) return;
-  const app = tabs.find(isAppTab);
-  let close = bad;
-  if (!app) {
-    // Reuse one of the tabs for the app so the window doesn't close.
-    await chrome.tabs.update(bad[0].id, { url: APP_URL, active: true }).catch(() => {});
-    close = bad.slice(1);
+  const hasApp = tabs.some(isAppTab);
+  for (const [i, t] of bad.entries()) {
+    const url = !hasApp && i === 0 ? APP_URL : BLOCKED_URL;
+    await chrome.tabs.update(t.id, { url }).catch(() => {});
   }
-  if (close.length) await chrome.tabs.remove(close.map((t) => t.id)).catch(() => {});
-  if (app) await focusTab(app);
 }
 
 async function focusTab(tab) {

@@ -63,7 +63,7 @@ The lock applies to Chrome only. Use your computer's parental controls to limit 
 |---|---|
 | `declarativeNetRequest` | Blocks websites, search engines and homework-answer sites while the browser is locked, and redirects them to the extension's "locked" page. This is the core of the extension's purpose. |
 | Host permissions (`<all_urls>`) | Required so the blocking rules can apply to every website and redirect blocked pages to the extension's own page. No page content is read or collected. |
-| `tabs` | Keeps a single practice tab open while locked: closes or redirects tabs showing blocked pages (including chrome:// pages, which network rules can't block) and focuses the practice tab. |
+| `tabs` | Keeps the practice tab in focus while locked: switches tabs showing blocked pages (including chrome:// pages, which network rules can't block) to the extension's "locked" page, and closes an extra duplicate practice tab opened in the same window. |
 | `storage` | Saves the child's practice history, streaks, badges and parent settings locally on the device. |
 | `alarms` | Re-locks the browser when a parent's unlock period or the after-practice unlock ends. |
 
@@ -91,10 +91,10 @@ The lock applies to Chrome only. Use your computer's parental controls to limit 
 
 ```
 No login is needed. On first run the extension opens a setup page; nothing is blocked until setup is finished.
-1. Enter any child name and a parent PIN (e.g. 1234), then click "Start coaching". Chrome is now locked: other tabs close and websites redirect to a "locked" page.
+1. Enter any child name and a parent PIN (e.g. 1234), then click "Start coaching". Chrome is now locked: websites and open pages switch to a "locked" page.
 2. Click "Start today's 10" and answer the questions. Wrong answers show an explanation.
 3. After the 10th question, browsing unlocks for the rest of the day.
 4. To unlock at any time: click "Unlock" in the top bar (or on the locked page) and enter the PIN.
-5. Parent dashboard: click "Parent" and enter the PIN.
+5. Parent dashboard: click "Parent" and enter the PIN. To uninstall: Parent → Lock & settings → Remove this extension.
 Search engines and AI/answer sites stay blocked even when unlocked; this can be changed in Parent → Lock & settings.
 ```
