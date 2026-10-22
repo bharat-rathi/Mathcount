@@ -647,7 +647,7 @@ async function closeIfDuplicate() {
   if (!self) return false;
   const appUrl = chrome.runtime.getURL('app.html');
   const tabs = await chrome.tabs.query({});
-  const isApp = (t) => (t.pendingUrl || t.url || '').startsWith(appUrl) || (t.pendingUrl || t.url || '').startsWith('chrome://newtab');
+  const isApp = (t) => (t.pendingUrl || t.url || '').startsWith(appUrl);
   const older = tabs.find((t) => t.id < self.id && isApp(t));
   if (!older) return false;
   // Never close the only tab in a window: that would close the whole window.

@@ -55,9 +55,9 @@ of 16π) is marked wrong, with an explanation of the rule.
   By default these stay blocked even during unlocked time.
 - `chrome://` pages (extensions, settings…) are blocked too, so the extension can't be turned off from
   inside Chrome.
-- The new-tab page is the practice app, and it opens whenever Chrome starts. While locked there's only ever
-  one copy: tabs that aren't allowed switch to a "locked" page in place (nothing is closed), and an extra
-  new tab in the same window switches back to the practice tab.
+- While locked there's only ever one practice tab: new tabs switch to it, a new window shows the "locked"
+  page, and pages you had open switch to the "locked" page in place (nothing is closed). When you unlock,
+  those pages come back, and new tabs and windows are ordinary Chrome again.
 - **Parent area (PIN-protected):** a progress dashboard (below), lock controls, settings and export.
 - **Finishing the daily 10 unlocks browsing** for the rest of the day (it locks again at midnight). In the
   Parent area you can change this to a set number of minutes, or to "stay locked until a parent unlocks".
@@ -155,7 +155,7 @@ Make sure your child's OS account is **not an administrator**. Otherwise they ca
 ```
 manifest.json        Manifest V3
 background.js        Lock: declarativeNetRequest rules + tab watchdog + relock alarm
-app.html/.css/.js    The practice app (also replaces the new-tab page)
+app.html/.css/.js    The practice app
 blocked.html/.js     Page shown in place of blocked sites
 lib/topics.js        19 topics and their core problem generators (steps, tips, common mistakes)
 lib/topics-more.js   66 more problem types, 3–4 per topic

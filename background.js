@@ -1,7 +1,7 @@
 // Service worker: keeps the browser locked to the practice app unless a parent
 // (or a finished daily set, if enabled) has unlocked it.
 
-import { buildRules, isUrlAllowed, lockStatus } from './lib/blocking.js';
+import { buildRules, isUrlAllowed, isNewTabUrl, lockStatus } from './lib/blocking.js';
 
 const APP_URL = chrome.runtime.getURL('app.html');
 const BLOCKED_URL = chrome.runtime.getURL('blocked.html');
@@ -28,19 +28,50 @@ async function doApplyLock() {
   const existing = await chrome.declarativeNetRequest.getDynamicRules();
   await chrome.declarativeNetRequest.updateDynamicRules({
     removeRuleIds: existing.map((r) => r.id),
-    addRules: buildRules(current),
+    addRules: buildRules(current, BLOCKED_URL),
   });
 
   await chrome.alarms.clear('relock');
   if (!current.locked) chrome.alarms.create('relock', { when: current.until + 500 });
 
-  await sweepTabs();
+  const wasLocked = lastLocked !== false;
+  lastLocked = current.locked;
+  if (current.locked) await sweepTabs();
+  else if (wasLocked) await restoreBlockedTabs();
 }
 
-// The practice app shows up either as app.html or as Chrome's new-tab page (which it replaces).
+let lastLocked = null;
+
+// After an unlock, tabs showing the "locked" page go back to the page they were on.
+// Search pages stay put when search is still blocked.
+async function restoreBlockedTabs() {
+  const tabs = (await chrome.tabs.query({})).filter((t) => (t.url || '').startsWith(BLOCKED_URL));
+  for (const t of tabs) {
+    if ((t.url || '').includes('why=search') && current.blockSearch) continue;
+    const from = fromOf(t.url);
+    await chrome.tabs.update(t.id, { url: from || 'chrome://newtab/' }).catch(() => {});
+  }
+}
+
 function isAppTab(tab) {
-  const url = tab.pendingUrl || tab.url || '';
-  return url.startsWith(APP_URL) || url.startsWith('chrome://newtab');
+  return (tab.pendingUrl || tab.url || '').startsWith(APP_URL);
+}
+
+// While locked, a new tab or window goes to the one practice tab instead of
+// opening another copy. A new tab next to other tabs is folded into the
+// existing practice tab; a new window keeps its tab (as the practice app if
+// there is none yet, otherwise as the "locked" page) so the window stays open.
+async function handleNewTab(tab) {
+  if (!current.locked) return;
+  const tabs = await chrome.tabs.query({});
+  const app = tabs.find((t) => t.id !== tab.id && isAppTab(t));
+  const alone = !tabs.some((t) => t.windowId === tab.windowId && t.id !== tab.id);
+  if (!app) await chrome.tabs.update(tab.id, { url: APP_URL }).catch(() => {});
+  else if (alone) await chrome.tabs.update(tab.id, { url: BLOCKED_URL }).catch(() => {});
+  else {
+    await focusTab(app);
+    await chrome.tabs.remove(tab.id).catch(() => {});
+  }
 }
 
 // Tabs that aren't allowed switch to the "locked" page in place. Nothing is ever
@@ -51,10 +82,11 @@ async function sweepTabs() {
   const tabs = await chrome.tabs.query({});
   const bad = tabs.filter((t) => !isUrlAllowed(t.pendingUrl || t.url, current, ORIGIN));
   if (!bad.length) return;
-  const hasApp = tabs.some(isAppTab);
-  for (const [i, t] of bad.entries()) {
-    const url = !hasApp && i === 0 ? APP_URL : BLOCKED_URL;
-    await chrome.tabs.update(t.id, { url }).catch(() => {});
+  let hasApp = tabs.some(isAppTab);
+  for (const t of bad) {
+    if (isNewTabUrl(t.pendingUrl || t.url)) { await handleNewTab(t); hasApp = true; continue; }
+    await chrome.tabs.update(t.id, { url: hasApp ? blockedUrlFor(t.pendingUrl || t.url) : APP_URL }).catch(() => {});
+    hasApp = true;
   }
 }
 
@@ -63,8 +95,17 @@ async function focusTab(tab) {
   await chrome.windows.update(tab.windowId, { focused: true }).catch(() => {});
 }
 
-function redirect(tabId) {
-  chrome.tabs.update(tabId, { url: BLOCKED_URL }).catch(() => {});
+// The "locked" page remembers the address it replaced (after ?from=).
+function blockedUrlFor(url) {
+  return /^https?:/.test(url || '') ? `${BLOCKED_URL}?from=${url}` : BLOCKED_URL;
+}
+function fromOf(url) {
+  const i = (url || '').indexOf('?from=');
+  return i === -1 ? null : url.slice(i + 6);
+}
+
+function redirect(tabId, url) {
+  chrome.tabs.update(tabId, { url: blockedUrlFor(url) }).catch(() => {});
 }
 
 async function openApp() {
@@ -74,15 +115,17 @@ async function openApp() {
   else await chrome.tabs.create({ url: APP_URL });
 }
 
+function checkTab(tab, url) {
+  if (!url || isUrlAllowed(url, current, ORIGIN)) return;
+  if (isNewTabUrl(url)) handleNewTab(tab);
+  else redirect(tab.id, url);
+}
+
 chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
-  const url = info.url || (info.status === 'loading' ? tab.pendingUrl || tab.url : null);
-  if (url && !isUrlAllowed(url, current, ORIGIN)) redirect(tabId);
+  checkTab(tab, info.url || (info.status === 'loading' ? tab.pendingUrl || tab.url : null));
 });
 
-chrome.tabs.onCreated.addListener((tab) => {
-  const url = tab.pendingUrl || tab.url;
-  if (url && !isUrlAllowed(url, current, ORIGIN)) redirect(tab.id);
-});
+chrome.tabs.onCreated.addListener((tab) => checkTab(tab, tab.pendingUrl || tab.url));
 
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && changes.state) {
@@ -105,7 +148,7 @@ chrome.runtime.onInstalled.addListener(async () => {
 chrome.runtime.onStartup.addListener(async () => {
   chrome.alarms.create('heartbeat', { periodInMinutes: 1 });
   await applyLock();
-  openApp();
+  if (current.locked) openApp(); // when unlocked, Chrome starts normally
 });
 
 chrome.action.onClicked.addListener(openApp);
