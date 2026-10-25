@@ -303,6 +303,7 @@
     frame(`<div class="card">
         <h2>📋 ${sl.h}</h2>
         <div class="problem">${fmt(sl.problem)}</div>
+        ${sl.svg ? `<div id="pic">${sl.svg}</div>` : ''}
         <div id="stp"></div>
         <div class="row spread" style="margin-top:10px"><button class="btn ghost small" id="say">🔊 Read to me</button><button class="btn" id="nx">Show step 1 ▶</button></div>
       </div>`, label);
