@@ -51,12 +51,20 @@ divisibility, primes/GCF/LCM, counting divisors, units digits, remainders, seque
 equations, exponents and roots, counting, arrangements, probability, statistics, angles
 and polygons, the Pythagorean theorem, area, circles, 3D solids and coordinate geometry.
 
-- **Pass 1** teaches every topic.
-- **Pass 2 ("Level Up")** comes back with harder problems and a new trick.
-- **A practice contest** follows every 6 classes: 15 questions, 25 minutes, answers only at
-  the end, then a full review.
+The season has 51 games, weighted by what the real test asks, based on 200 problems from
+2018–2026 (see `analysis/`):
 
-That's 54 classes in all. If he misses a day, nothing is skipped: the next class just waits.
+- **27 first games**, one per topic, alternating areas so no two days feel the same.
+- **14 "Level Up" games**, with harder problems and a new trick. They go only to the heavy
+  hitters: logic, the counting & probability chapters, area, Pythagoras, circles, ratios,
+  sequences, equations, rates and stats. Number theory and easy arithmetic get one game
+  each; arithmetic speed is trained daily in the Shootaround instead.
+- **A practice contest after every 6 games**: 15 questions, 25 minutes, answers only at
+  the end, then a full review. The last 3 questions are hand-written hard problems.
+- **The Finals:** the last 4 games are the real 2023–2026 AMC 8 papers, taken timed on
+  LIVE by Po-Shen Loh (which hosts them with MAA permission). He enters his score afterwards.
+
+If he misses a day, nothing is skipped: the next game just waits.
 
 Questions are generated with fresh numbers each time, so there are no memorized answers.
 The wrong choices are the classic mistakes (adding tops and bottoms, the fencepost +1,

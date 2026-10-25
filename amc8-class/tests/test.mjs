@@ -65,7 +65,8 @@ for (let i = 0; i < plan.length; i++) {
     const want = 'shootaround,' + (i === 0 ? '' : 'warmup,') + 'lesson,trick,quiz,break,quiz,boss';
     if (types !== want) fail(`class ${i} segments ${types}`);
     if (!c.segments.find((s) => s.type === 'trick').tip) fail(`class ${i} has no trick`);
-  } else if (c.segments[0].questions.length !== 15) fail(`mock ${i} size`);
+  } else if (plan[i].type === 'mock' && c.segments[0].questions.length !== 15) fail(`mock ${i} size`);
+  else if (plan[i].type === 'paper' && !c.segments[0].url.startsWith('https://')) fail(`paper ${i} url`);
 }
 
 // Streaks: consecutive days add, a gap resets, the same day twice counts once.
@@ -101,6 +102,17 @@ for (const h of ctx.HARD.problems) {
 if (new Set(ctx.HARD.problems.map((h) => h.id)).size !== ctx.HARD.problems.length) fail('duplicate hard ids');
 const boss = Engine.buildClass(Engine.newState(), 0).segments.find((x) => x.type === 'boss').questions[0];
 if (!boss.hints || !boss.id) fail('clutch shot is not a hand-written problem');
+
+// Plan: every topic appears; length fits the season; real papers at the end.
+if (plan.length > 56) fail(`plan too long: ${plan.length}`);
+for (const id of ids) if (!plan.some((c) => c.topic === id)) fail(`topic ${id} not in plan`);
+if (plan.slice(-4).some((c) => c.type !== 'paper')) fail('last 4 games should be real papers');
+// Old saves move onto the new plan by what they already finished.
+const old = Object.assign(Engine.newState(), { planVersion: 1, log: [
+  { kind: 'lesson', title: `${TOPICS.find((x) => x.id === 'mental').emoji} ${TOPICS.find((x) => x.id === 'mental').name}` },
+  { kind: 'lesson', title: `${TOPICS.find((x) => x.id === 'angles').emoji} ${TOPICS.find((x) => x.id === 'angles').name}` }] });
+Engine.migratePlan(old);
+if (old.classIdx !== 2 || old.planVersion !== Engine.PLAN_VERSION) fail(`migration put him at ${old.classIdx}`);
 
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log(`OK — ${TOPICS.length} topics, ${TOPICS.reduce((n, t) => n + t.gens.length, 0)} question types, ${plan.length} classes`);

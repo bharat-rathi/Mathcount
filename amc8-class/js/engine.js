@@ -3,29 +3,55 @@
   const U = root.U;
   const byId = () => Object.fromEntries(root.TOPICS.map((t) => [t.id, t]));
 
-  // Topics alternate between number, algebra/counting and geometry so no two days feel the same.
-  const ORDER = ['mental', 'angles', 'logic', 'fractions', 'counting', 'percents', 'area', 'ratios', 'sequences',
-    'pythag', 'combos', 'casework', 'divisibility', 'probability', 'rates', 'paths', 'circles', 'gcflcm', 'equations', 'stats',
-    'divisors', 'coords', 'probplus', 'exponents', 'units', 'solids', 'remainders'];
+  // Every topic, in first-lesson order. Areas alternate so no two days feel the same.
+  const ORDER = ['mental', 'angles', 'logic', 'fractions', 'counting', 'area', 'ratios', 'sequences', 'pythag', 'combos',
+    'casework', 'divisibility', 'probability', 'percents', 'paths', 'circles', 'gcflcm', 'equations', 'stats', 'divisors',
+    'coords', 'probplus', 'exponents', 'rates', 'units', 'solids', 'remainders'];
 
-  // Pass 1 teaches each topic. Pass 2 revisits it with harder problems and a new trick.
-  // A practice contest follows every 6th class.
+  // Second ("Level Up") games go to the areas that matter most on the real test, based on
+  // 200 problems from 2018–2026 (analysis/README.md): counting & probability is the hardest
+  // area, then logic and geometry. Number theory and easy arithmetic get one game each, and
+  // arithmetic speed is trained daily in the Shootaround instead.
+  const LEVEL_UP = ['logic', 'counting', 'area', 'casework', 'probability', 'pythag', 'ratios', 'combos',
+    'circles', 'paths', 'sequences', 'equations', 'rates', 'stats'];
+
+  // The last games are real past AMC 8 papers, hosted with MAA permission by LIVE by Po-Shen Loh.
+  const PAPERS = [2023, 2024, 2025, 2026];
+  const paperUrl = (y) => `https://live.poshenloh.com/past-contests/amc8/${y}`;
+
+  // Lessons with a practice contest after every 6, then the 4 real papers.
   function buildPlan() {
+    const lessons = [...ORDER.map((topic) => ({ topic, pass: 1 })), ...LEVEL_UP.map((topic) => ({ topic, pass: 2 }))];
     const plan = [];
-    let sinceMock = 0;
-    for (const pass of [1, 2]) {
-      for (const id of ORDER) {
-        plan.push({ type: 'lesson', topic: id, pass });
-        if (++sinceMock === 6) { plan.push({ type: 'mock', upTo: plan.length }); sinceMock = 0; }
-      }
-    }
-    plan.push({ type: 'mock', upTo: plan.length, final: true });
+    lessons.forEach((l, i) => {
+      plan.push({ type: 'lesson', ...l });
+      if ((i + 1) % 6 === 0) plan.push({ type: 'mock', upTo: plan.length });
+    });
+    PAPERS.forEach((year, i) => plan.push({ type: 'paper', year, url: paperUrl(year), final: i === PAPERS.length - 1 }));
     return plan;
+  }
+  const PLAN_VERSION = 2;
+
+  // Older saves used a different plan. Rebuild his place from the class log: the nth time a
+  // topic shows up is that topic's pass n, and each logged contest covers one contest slot.
+  function migratePlan(state) {
+    if ((state.planVersion || 1) >= PLAN_VERSION) return;
+    const seen = {};
+    let mocks = 0;
+    for (const l of state.log) {
+      if (l.kind === 'mock') { mocks++; continue; }
+      const t = root.TOPICS.find((x) => l.title === `${x.emoji} ${x.name}`);
+      if (t) seen[t.id] = (seen[t.id] || 0) + 1;
+    }
+    const plan = buildPlan();
+    let idx = plan.findIndex((c) => (c.type === 'lesson' && (seen[c.topic] || 0) < c.pass) || (c.type === 'mock' && mocks-- <= 0) || c.type === 'paper');
+    state.classIdx = idx < 0 ? 0 : idx;
+    state.planVersion = PLAN_VERSION;
   }
 
   const DEFAULT_CONTEST = '2027-01-21';
   function newState() {
-    return { name: '', contestDate: DEFAULT_CONTEST, classIdx: 0, xp: 0, streak: 0, bestStreak: 0,
+    return { name: '', contestDate: DEFAULT_CONTEST, planVersion: PLAN_VERSION, classIdx: 0, xp: 0, streak: 0, bestStreak: 0,
       lastDay: null, mastery: {}, log: [], badges: [], sound: true, voice: false,
       // Basketball layer: season record, streak timeouts, look, trick cards and Shootaround facts.
       wins: 0, losses: 0, timeouts: 2, jersey: 'gold', number: 23, court: 'hardwood',
@@ -78,6 +104,9 @@
     const plan = buildPlan();
     const c = plan[Math.min(idx, plan.length - 1)];
     const T = byId();
+    if (c.type === 'paper') {
+      return { idx, kind: 'paper', title: `${c.year} AMC 8${c.final ? ' (Final Dress Rehearsal)' : ''}`, minutes: 40, year: c.year, url: c.url, segments: [{ type: 'paper', year: c.year, url: c.url }] };
+    }
     if (c.type === 'mock') {
       const pool = taughtTopics(state, c.upTo);
       // Spread 15 questions over the taught topics, getting harder like the real contest.
@@ -88,7 +117,7 @@
         // The last three are hand-written hard problems, like #23–25 on the real test.
         qs.push(k >= 12 && root.HARD ? makeHard(deck.pop(), (state.hardSeen || []).concat(qs.map((x) => x.id))) : makeQuestion(deck.pop(), k < 5 ? 1 : k < 11 ? 2 : 3));
       }
-      return { idx, kind: 'mock', title: c.final ? 'Final Dress Rehearsal' : 'Practice Contest', minutes: 25, segments: [{ type: 'mock', questions: qs }] };
+      return { idx, kind: 'mock', title: 'Practice Contest', minutes: 25, segments: [{ type: 'mock', questions: qs }] };
     }
     const t = T[c.topic];
     const lv = c.pass === 1 ? [1, 1, 1, 2, 2, 2, 2, 2, 3, 3] : [2, 2, 2, 2, 3, 3, 3, 3, 3, 3];
@@ -155,6 +184,8 @@
     if (state.streak >= 30) give('streak30');
     if (cls.kind === 'mock') give('mock');
     if (cls.kind === 'mock' && result.right >= 12) give('honor');
+    if (cls.kind === 'paper') give('paper');
+    if (cls.kind === 'paper' && result.right >= 21) give('honorroll');
     if (result.bossWin) give('boss');
     earned.usedTimeout = usedTimeout;
     earned.win = win;
@@ -164,7 +195,7 @@
   const BADGES = {
     first: ['🌱', 'First class'], perfect: ['💎', 'Perfect quiz'], streak3: ['🔥', '3-day streak'],
     streak7: ['⚡', '7-day streak'], streak30: ['🏆', '30-day streak'], mock: ['📝', 'First contest'],
-    honor: ['🥇', '12+ on a practice contest'], boss: ['🐉', 'Beat a boss'],
+    honor: ['🥇', '12+ on a practice contest'], paper: ['📜', 'First real AMC paper'], honorroll: ['👑', 'Honor Roll score (21+) on a real paper'], boss: ['🏀', 'Hit a game-winner'],
   };
 
   const MISTAKES = { careless: ['😬', 'Careless slip'], concept: ['🤷', "Didn't know how"], trick: ['🃏', 'Forgot the trick'], time: ['⏱️', 'Ran out of time'] };
@@ -175,5 +206,5 @@
     if (state.mistakeLog.length > 200) state.mistakeLog.shift();
   }
 
-  root.Engine = { MISTAKES, recordMistake, makeHard, ORDER, buildPlan, newState, makeQuestion, buildClass, record, xpFor, levelOf, finishClass, dayKey, daysBetween, taughtTopics, BADGES };
+  root.Engine = { migratePlan, PLAN_VERSION, MISTAKES, recordMistake, makeHard, ORDER, buildPlan, newState, makeQuestion, buildClass, record, xpFor, levelOf, finishClass, dayKey, daysBetween, taughtTopics, BADGES };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -11,7 +11,8 @@
 
   // ── Saved progress (browser storage; the page still works if it is blocked)
   let S;
-  try { S = Object.assign(E.newState(), JSON.parse(localStorage.getItem(KEY) || '{}')); } catch { S = E.newState(); }
+  try { S = Object.assign(E.newState(), { planVersion: 1 }, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch { S = E.newState(); }
+  if (S.name) E.migratePlan(S); else S.planVersion = E.PLAN_VERSION;
   // Cloud copy: a private per-account record, so progress follows him to any device.
   // The browser copy stays as a fallback and the newer of the two wins on load.
   let cloudRef = null, reportRef = null, cloudQueue = Promise.resolve(), onHome = false;
@@ -45,7 +46,8 @@
       cloudRef = ref;
       reportRef = db.doc(`reports/${id}`);
       if (remote && (remote.savedAt || 0) > (S.savedAt || 0)) {
-        S = Object.assign(E.newState(), remote);
+        S = Object.assign(E.newState(), { planVersion: 1 }, remote);
+        E.migratePlan(S);
         try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { /* private mode */ }
       } else if (S.name) save();
       if (onHome) home();
@@ -132,11 +134,11 @@
     const daysLeft = Math.max(0, E.daysBetween(E.dayKey(), S.contestDate));
     const L = E.levelOf(S.xp);
     const doneToday = S.lastDay === E.dayKey();
-    const nextLabel = next.type === 'mock' ? '🏆 Playoff Game: practice contest (25 min)' : `${TOP[next.topic].emoji} ${TOP[next.topic].name}${next.pass === 2 ? ' · Level Up' : ''}`;
+    const nextLabel = next.type === 'paper' ? `🏆 The Finals: the real ${next.year} AMC 8 (40 min)` : next.type === 'mock' ? '🏆 Playoff Game: practice contest (25 min)' : `${TOP[next.topic].emoji} ${TOP[next.topic].name}${next.pass === 2 ? ' · Level Up' : ''}`;
     const nodes = plan.map((c, i) => {
       const cls = i < S.classIdx ? 'done' : i === S.classIdx ? 'now' : '';
-      const em = c.type === 'mock' ? '📝' : TOP[c.topic].emoji;
-      return `<div class="node ${cls} ${c.type === 'mock' ? 'mock' : ''}" title="${c.type === 'mock' ? 'Practice contest' : esc(TOP[c.topic].name)}">${i < S.classIdx ? '✅' : em}<small>${i + 1}</small></div>`;
+      const em = c.type === 'paper' ? '🏆' : c.type === 'mock' ? '📝' : TOP[c.topic].emoji;
+      return `<div class="node ${cls} ${c.type === 'lesson' ? '' : 'mock'}" title="${c.type === 'paper' ? `Real ${c.year} AMC 8` : c.type === 'mock' ? 'Practice contest' : esc(TOP[c.topic].name)}">${i < S.classIdx ? '✅' : em}<small>${i + 1}</small></div>`;
     }).join('');
     h(`
       <div class="card court">
@@ -152,9 +154,9 @@
       </div>
       <div class="card">
         <span class="tag">${doneToday ? 'Done for today! Bonus game?' : "Today's game"} · Game ${S.classIdx + 1} of ${plan.length}</span>
-        <h2>${next.type === 'mock' ? nextLabel : `vs. ${H.opponent(S.classIdx)}`}</h2>
-        ${next.type === 'mock' ? '' : `<p style="margin:0 0 6px"><b>${nextLabel}</b></p>`}
-        <p class="muted">${next.type === 'mock' ? '15 contest-style questions, a timer, answers at the end, just like the real thing.' : 'Shootaround → pregame → film room → new play → 1st half → halftime → 2nd half → clutch shot. About 20 minutes.'}</p>
+        <h2>${next.type !== 'lesson' ? nextLabel : `vs. ${H.opponent(S.classIdx)}`}</h2>
+        ${next.type !== 'lesson' ? '' : `<p style="margin:0 0 6px"><b>${nextLabel}</b></p>`}
+        <p class="muted">${next.type === 'paper' ? 'A real past AMC 8: 25 problems, 40 minutes, pencil and paper. Then enter your score.' : next.type === 'mock' ? '15 contest-style questions, a timer, answers at the end, just like the real thing.' : 'Shootaround → pregame → film room → new play → 1st half → halftime → 2nd half → clutch shot. About 20 minutes.'}</p>
         <button class="btn big go" id="start">🏀 ${doneToday ? 'Play a bonus game' : 'Tip off!'}</button>
       </div>
       <div class="card">
@@ -209,6 +211,7 @@
       else if (seg.type === 'break') steps.push({ kind: 'break' });
       else if (seg.type === 'boss') steps.push({ kind: 'boss', q: seg.questions[0] });
       else if (seg.type === 'mock') steps.push({ kind: 'mock', qs: seg.questions });
+      else if (seg.type === 'paper') steps.push({ kind: 'paper', year: seg.year, url: seg.url });
     }
     P = { cls, steps, i: 0, xp: 0, right: 0, total: 0, combo: 0, bestCombo: 0, bossWin: false, t0: Date.now(), practice: !!custom };
     clearInterval(clock);
@@ -238,6 +241,7 @@
     if (s.kind === 'break') return brainBreak();
     if (s.kind === 'boss') return boss(s);
     if (s.kind === 'mock') return mock(s);
+    if (s.kind === 'paper') return paper(s);
   }
 
   // Color code used in all lessons: {g:given} blue, {f:find} orange, {a:answer} green.
@@ -533,6 +537,27 @@
     timers.push(setInterval(() => { left--; tick(); if (left <= 0) { alert("Time's up! Let's see how you did."); grade(); } }, 1000));
   }
 
+  // A real past paper, taken on the hosting site (or printed). He types in his score after.
+  function paper(s) {
+    frame(`<div class="card scoreboard" style="text-align:center"><div style="font-size:56px">🏆</div>
+        <h2 style="color:#ffd43b">The Finals: ${s.year} AMC 8</h2>
+        <p>The real test from ${s.year}. 25 problems, 40 minutes, pencil and scratch paper only. No calculator!</p></div>
+      <div class="card">
+        <ol class="sol"><li>Get scratch paper and a pencil, and set a 40-minute timer.</li>
+          <li>Pacing goal: problems 1–10 in about 12 minutes. If one takes over 2 minutes, skip it and come back.</li>
+          <li>Open the test and press <b>Start</b> there. When you finish, check the answers on that page.</li></ol>
+        <a class="btn big go" href="${s.url}" target="_blank" rel="noopener" style="display:block;text-align:center;text-decoration:none">Open the ${s.year} AMC 8 ↗</a>
+        <label for="sc">How many did you get right? (0–25)</label><input id="sc" type="number" min="0" max="25" inputmode="numeric">
+        <p></p><button class="btn big" id="nx">Record my score ▶</button>
+        <p class="muted" style="font-size:14px">Problems hosted with MAA permission by LIVE by Po-Shen Loh.</p></div>`, 'Finals');
+    $('#nx').onclick = () => {
+      const v = parseInt($('#sc').value, 10);
+      if (!(v >= 0 && v <= 25)) { $('#sc').focus(); return; }
+      P.right = v; P.total = 25; P.xp += v * 4;
+      next();
+    };
+  }
+
   function results() {
     clearTimers(); clearInterval(clock); keyHandler = null;
     const pct = P.total ? P.right / P.total : 0;
@@ -550,7 +575,8 @@
         <details ${pick === q.answer ? '' : 'open'}><summary>${pick === q.answer ? '✅' : pick == null ? '⬜' : '❌'} ${i + 1}. ${esc(q.q)}</summary>
         <p>Your answer: <b>${pick == null ? 'skipped' : esc(pick)}</b> · Correct: <b>${esc(q.answer)}</b></p><ol class="sol">${q.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol></details>`).join('')}</div>` : '';
     h(`<div class="card" style="text-align:center">
-        <h1>${P.practice ? 'Practice complete! 🎉' : win ? 'FINAL: WIN! 🏆' : 'FINAL: tough loss 😤'}</h1>
+        <h1>${P.practice ? 'Practice complete! 🎉' : P.cls.kind === 'paper' ? `${P.right}/25 on the real AMC 8 ${P.right >= 21 ? '👑' : '🏆'}` : win ? 'FINAL: WIN! 🏆' : 'FINAL: tough loss 😤'}</h1>
+        ${P.cls.kind === 'paper' ? `<p>${P.right >= 24 ? 'Distinguished Honor Roll level!' : P.right >= 21 ? 'Honor Roll level!' : `Honor Roll was 21 in 2026: ${21 - P.right} more to go.`}</p>` : ''}
         ${P.practice ? '' : `<p class="muted">Season record ${S.wins}–${S.losses}${earned.usedTimeout ? ' · ⏸️ a timeout saved your streak!' : ''}</p>`}
         <div class="stars">${'⭐'.repeat(stars)}${'☆'.repeat(3 - stars)}</div>
         <h2>${P.right} / ${P.total} correct</h2>
@@ -680,9 +706,11 @@
     const log = S.log.slice().reverse().slice(0, 30).map((l) => `<tr><td>${l.day}</td><td>${esc(l.title)}</td><td>${l.right}/${l.total}</td><td>+${l.xp}</td></tr>`).join('');
     const weak = E.ORDER.filter((id) => S.mastery[id] && S.mastery[id].r.length >= 5 && S.mastery[id].r.reduce((a, b) => a + b, 0) / S.mastery[id].r.length < 0.6).map((id) => TOP[id].name);
     const mocks = S.log.filter((l) => l.kind === 'mock');
+    const papers = S.log.filter((l) => l.kind === 'paper');
     h(`<div class="card"><div class="row spread"><h2>👪 Parent page</h2><button class="btn ghost small" id="back">✕</button></div>
         <p>${esc(S.name)} has finished <b>${S.log.length}</b> classes (${S.classIdx} of ${E.buildPlan().length} in the course). Current streak <b>${S.streak}</b>, best <b>${S.bestStreak}</b>.</p>
         ${mocks.length ? `<p>Practice contests: ${mocks.map((m) => `<b>${m.right}/${m.total}</b>`).join(', ')}</p>` : ''}
+        ${papers.length ? `<p>Real AMC 8 papers: ${papers.map((m) => `${esc(m.title)}: <b>${m.right}/25</b>`).join(', ')} (Honor Roll was 21 in 2026)</p>` : ''}
         ${weak.length ? `<p>⚠️ Needs work: <b>${weak.join(', ')}</b>. These come back automatically in warm-ups.</p>` : ''}
         ${(() => { const m = S.mistakes || {}, tot = Object.values(m).reduce((a, b) => a + b, 0); return tot ? `<p><b>Why answers went wrong</b> (his own tags, ${tot} total): ${Object.entries(E.MISTAKES).map(([k, [em, t]]) => `${em} ${t}: <b>${m[k] || 0}</b>`).join(' · ')}</p>` : ''; })()}
         <p>Clutch problems seen: <b>${(S.hardSeen || []).length}</b> of ${window.HARD.problems.length}.</p>
@@ -692,7 +720,7 @@
       <div class="card"><h3>Settings</h3>
         <label for="nm">Student name</label><input id="nm" value="${esc(S.name)}">
         <label for="dt">AMC 8 date</label><input id="dt" type="date" value="${S.contestDate}">
-        <label for="jump">Jump to class</label><select id="jump">${E.buildPlan().map((c, i) => `<option value="${i}" ${i === S.classIdx ? 'selected' : ''}>#${i + 1} ${c.type === 'mock' ? '📝 Practice contest' : `${TOP[c.topic].name}${c.pass === 2 ? ' (Level Up)' : ''}`}</option>`).join('')}</select>
+        <label for="jump">Jump to class</label><select id="jump">${E.buildPlan().map((c, i) => `<option value="${i}" ${i === S.classIdx ? 'selected' : ''}>#${i + 1} ${c.type === 'paper' ? `🏆 Real ${c.year} AMC 8` : c.type === 'mock' ? '📝 Practice contest' : `${TOP[c.topic].name}${c.pass === 2 ? ' (Level Up)' : ''}`}</option>`).join('')}</select>
         <label><input type="checkbox" id="snd" style="width:auto" ${S.sound ? 'checked' : ''}> Sound effects</label>
         <label><input type="checkbox" id="vc" style="width:auto" ${S.voice ? 'checked' : ''}> Read every slide and question aloud</label>
         <p></p><div class="row"><button class="btn" id="sv">Save</button><button class="btn ghost" id="reset">Reset all progress</button></div></div>`);
