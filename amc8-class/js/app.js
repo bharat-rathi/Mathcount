@@ -792,7 +792,11 @@
       try {
         const k = await C.addKid(n);
         kidId = k.id; pref('mh-kid', k.id);
-        S = fromSaved({ name: n, number: Math.max(0, Math.min(99, parseInt($('#kj').value, 10) || 0)) });
+        // The first player added on a device takes over progress played there without an account.
+        let device = null; try { device = JSON.parse(pref(KEY) || 'null'); } catch { /* unreadable */ }
+        const keep = device && device.log && device.log.length ? device : {};
+        S = fromSaved({ ...keep, name: n, number: Math.max(0, Math.min(99, parseInt($('#kj').value, 10) || 0)) });
+        if (keep === device) pref(KEY, null);
         save(); home();
       } catch (e) { alert(`Could not add the player: ${e.message || e}`); }
     };
