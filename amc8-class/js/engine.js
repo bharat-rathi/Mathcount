@@ -79,7 +79,7 @@
   // A hand-written clutch problem (js/hard.js) in the same shape as a generated question.
   function makeHard(topic, seen) {
     const p = root.HARD.pickHard(topic, seen || []);
-    return { topic: p.topic, level: 4, id: p.id, q: p.q, answer: p.a, choices: p.choices, steps: p.steps, hints: p.hints, key: p.key };
+    return { topic: p.topic, level: 4, id: p.id, q: p.q, svg: p.svg, answer: p.a, choices: p.choices, steps: p.steps, hints: p.hints, key: p.key };
   }
 
   // Weakest (or longest-unseen) topics among those already taught come back as warm-ups.

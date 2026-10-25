@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'js');
 const ctx = vm.createContext({ console, Math, Date });
-for (const f of ['util.js', 'viz.js', 'hoops.js', 'topics-number.js', 'topics-algebra.js', 'topics-geometry.js', 'topics-logic.js', 'topics-counting.js', 'topics-visual.js', 'hard.js', 'engine.js']) {
+for (const f of ['util.js', 'viz.js', 'hoops.js', 'topics-number.js', 'topics-algebra.js', 'topics-geometry.js', 'topics-logic.js', 'topics-counting.js', 'topics-visual.js', 'hard.js', 'hard-diagrams.js', 'engine.js']) {
   vm.runInContext(fs.readFileSync(path.join(dir, f), 'utf8'), ctx, { filename: f });
 }
 const { TOPICS, Engine, U } = ctx;
@@ -98,6 +98,7 @@ for (const h of ctx.HARD.problems) {
   if (h.choices.length !== 5 || new Set(h.choices).size !== 5 || !h.choices.includes(h.a)) fail(`hard ${h.id} choices`);
   if (!ids.includes(h.topic)) fail(`hard ${h.id} unknown topic ${h.topic}`);
   if (h.hints.length !== 2 || !h.steps.length || !h.key) fail(`hard ${h.id} missing hints/steps/key`);
+  if (h.svg && (!h.svg.startsWith('<svg') || bad(h.svg))) fail(`hard ${h.id} bad diagram`);
 }
 if (new Set(ctx.HARD.problems.map((h) => h.id)).size !== ctx.HARD.problems.length) fail('duplicate hard ids');
 const boss = Engine.buildClass(Engine.newState(), 0).segments.find((x) => x.type === 'boss').questions[0];

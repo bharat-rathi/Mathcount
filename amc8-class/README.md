@@ -72,8 +72,9 @@ averaging speeds, etc.).
 
 ## Clutch problems
 
-`js/hard.js` holds 43 original hard problems (AMC #16–25 level). Their answers were
-checked by brute force. Each one has:
+`js/hard.js` and `js/hard-diagrams.js` hold 78 original hard problems (AMC #16–25 level), 35 of them with drawn diagrams
+(shaded regions, nets, grids, charts, spinners, a clock, a Venn diagram). Their answers
+were checked by brute force or by computing coordinates. Each one has:
 - **two hints**, each costing 10 points
 - **a full solution**
 - **a "key idea"**, which he identifies after solving
