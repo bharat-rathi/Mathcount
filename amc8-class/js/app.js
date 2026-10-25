@@ -11,10 +11,37 @@
   // ── Saved progress (browser storage; the page still works if it is blocked)
   let S;
   try { S = Object.assign(E.newState(), JSON.parse(localStorage.getItem(KEY) || '{}')); } catch { S = E.newState(); }
-  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { /* private mode */ } };
+  // Cloud copy: a private per-account record, so progress follows him to any device.
+  // The browser copy stays as a fallback and the newer of the two wins on load.
+  let cloudRef = null, cloudQueue = Promise.resolve(), onHome = false;
+  const save = () => {
+    S.savedAt = Date.now();
+    try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { /* private mode */ }
+    if (cloudRef) {
+      const json = JSON.stringify(S);
+      cloudQueue = cloudQueue.then(() => cloudRef.set({ json })).catch(() => { /* stays saved locally */ });
+    }
+  };
+  (async () => {
+    if (!window.claude || !window.claude.use) return;
+    const [db, user] = await Promise.all([window.claude.use('db'), window.claude.use('user')]);
+    const id = user && (await user.id());
+    if (!db || !id) return;
+    const ref = db.doc(`data/users/${id}/amc8`);
+    try {
+      const snap = await ref.get();
+      const remote = snap.exists && JSON.parse(snap.data().json || 'null');
+      cloudRef = ref;
+      if (remote && (remote.savedAt || 0) > (S.savedAt || 0)) {
+        S = Object.assign(E.newState(), remote);
+        try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { /* private mode */ }
+      } else if (S.name) save();
+      if (onHome) home();
+    } catch { /* offline or refused: keep using the browser copy */ }
+  })();
 
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const h = (html) => { app.innerHTML = html; window.scrollTo(0, 0); };
+  const h = (html) => { onHome = false; app.innerHTML = html; window.scrollTo(0, 0); };
   const $ = (sel) => app.querySelector(sel);
 
   // ── Sound and voice
@@ -83,7 +110,7 @@
     h(`
       <div class="card">
         <div class="hero spread row">
-          <div><h1>Hi ${esc(S.name)}! 👋</h1><p class="muted">${daysLeft} days until the AMC 8 · ${S.contestDate}</p></div>
+          <div><h1>Hi ${esc(S.name)}! 👋</h1><p class="muted">${daysLeft} days until the AMC 8 · ${S.contestDate}<br>${cloudRef ? '☁️ Progress saved to your account' : '💾 Progress saved on this device'}</p></div>
           <div class="pill">🔥 ${S.streak} day${S.streak === 1 ? '' : 's'}</div>
         </div>
         <div class="row spread"><b>Level ${L.lvl}</b><span class="muted">${L.into} / ${L.need} XP</span></div>
@@ -104,6 +131,7 @@
         <button class="btn ghost" id="badges">🏅 Badges (${S.badges.length})</button>
         <button class="btn ghost" id="parent">👪 Parent page</button>
       </div>`);
+    onHome = true;
     $('#start').onclick = () => startClass(S.classIdx);
     $('#practice').onclick = practicePicker;
     $('#badges').onclick = badgesPage;
@@ -122,6 +150,7 @@
         <label for="dt">AMC 8 date (check the MAA site; this can be changed later)</label><input id="dt" type="date" value="${S.contestDate}">
         <p></p><button class="btn big go" id="go">Let's go!</button>
       </div>`);
+    onHome = true;
     $('#nm').focus();
     $('#go').onclick = () => { const n = $('#nm').value.trim(); if (!n) return $('#nm').focus(); S.name = n; S.contestDate = $('#dt').value || S.contestDate; save(); home(); };
   }
