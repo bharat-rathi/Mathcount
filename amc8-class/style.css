@@ -192,3 +192,7 @@ label { display: block; font-weight: 700; margin: 10px 0 4px; }
 .hint { background: color-mix(in srgb, #fab005 18%, var(--card)); border-radius: 12px; padding: 10px 12px; margin-top: 8px; font-weight: 600; animation: rise .3s both; }
 .why { margin-top: 12px; padding: 10px 12px; border: 2px dashed var(--line); border-radius: 14px; }
 .why .guesses { margin-top: 8px; } .why .btn { flex: 1 1 45%; }
+.chart text { font-weight: 700; } .chart .grid { stroke: var(--line); stroke-width: 1; } .chart .axis { stroke: var(--ink); stroke-width: 2; }
+.chart .plot { fill: none; stroke: var(--accent); stroke-width: 3; }
+.viz.chart { cursor: default; }
+.qviz .viz { margin: 0 0 12px; }

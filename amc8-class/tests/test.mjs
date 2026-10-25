@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'js');
 const ctx = vm.createContext({ console, Math, Date });
-for (const f of ['util.js', 'viz.js', 'hoops.js', 'topics-number.js', 'topics-algebra.js', 'topics-geometry.js', 'topics-logic.js', 'topics-counting.js', 'hard.js', 'engine.js']) {
+for (const f of ['util.js', 'viz.js', 'hoops.js', 'topics-number.js', 'topics-algebra.js', 'topics-geometry.js', 'topics-logic.js', 'topics-counting.js', 'topics-visual.js', 'hard.js', 'engine.js']) {
   vm.runInContext(fs.readFileSync(path.join(dir, f), 'utf8'), ctx, { filename: f });
 }
 const { TOPICS, Engine, U } = ctx;
@@ -37,7 +37,7 @@ for (const t of TOPICS) {
         let q;
         try { q = Engine.makeQuestion(t.id, level, gi); } catch (e) { fail(`${t.id}#${gi} L${level} threw ${e.message}`); break; }
         const where = `${t.id}#${gi} L${level}: ${q.q} → ${q.answer} [${q.choices.join(' | ')}]`;
-        if (!q.q || bad(q.q) || bad(q.answer) || q.steps.some(bad)) { fail(`bad text ${where} ${q.steps.join(' ')}`); break; }
+        if (!q.q || (q.svg && (!q.svg.startsWith('<svg') || bad(q.svg))) || bad(q.q) || bad(q.answer) || q.steps.some(bad)) { fail(`bad text ${where} ${q.steps.join(' ')}`); break; }
         if (q.choices.length !== 5 || new Set(q.choices).size !== 5) { fail(`choices ${where}`); break; }
         if (!q.choices.includes(q.answer)) { fail(`answer missing ${where}`); break; }
         if (q.choices.some((c) => bad(c) || / \++$/.test(c))) { fail(`filler/bad choice ${where}`); break; }

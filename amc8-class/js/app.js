@@ -378,6 +378,7 @@
     const choices = q.choices.map((c, i) => `<button class="choice" data-c="${esc(c)}"><span class="L">${LETTERS[i]}</span><span>${esc(c)}</span></button>`).join('');
     frame(`${before}<div class="card" id="qc">
         <div class="qtext">${esc(q.q)}</div>
+        ${q.svg ? `<div class="qviz">${q.svg}</div>` : ''}
         <div class="choices">${choices}</div>
         ${hintBar}
         <div id="fb"></div>
@@ -511,7 +512,7 @@
       const q = s.qs[cur];
       const nav = s.qs.map((_, i) => `<button class="btn small ${i === cur ? '' : 'ghost'}" data-j="${i}" style="min-width:42px">${picks[i] != null ? '●' : i + 1}</button>`).join('');
       frame(`<div class="card"><div class="row spread"><b>Problem ${cur + 1} of ${s.qs.length}</b><span class="pill" id="mt"></span></div></div>
-        <div class="card"><div class="qtext">${esc(q.q)}</div><div class="choices">${q.choices.map((c, i) => `<button class="choice ${picks[cur] === c ? 'picked' : ''}" data-c="${esc(c)}"><span class="L">${LETTERS[i]}</span><span>${esc(c)}</span></button>`).join('')}</div>
+        <div class="card"><div class="qtext">${esc(q.q)}</div>${q.svg ? `<div class="qviz">${q.svg}</div>` : ''}<div class="choices">${q.choices.map((c, i) => `<button class="choice ${picks[cur] === c ? 'picked' : ''}" data-c="${esc(c)}"><span class="L">${LETTERS[i]}</span><span>${esc(c)}</span></button>`).join('')}</div>
         <p></p><div class="row spread"><button class="btn ghost" id="pv" ${cur ? '' : 'disabled'}>◀ Back</button><button class="btn ghost" id="skip">Skip</button><button class="btn" id="fw">${cur === s.qs.length - 1 ? 'Finish' : 'Next ▶'}</button></div></div>
         <div class="card"><div class="row">${nav}</div></div>`, P.cls.title);
       tick();

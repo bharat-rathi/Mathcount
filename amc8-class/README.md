@@ -46,17 +46,17 @@ A wrong first answer gets one more try. After that, the worked solution appears 
 
 ## The course
 
-27 topics covering the AMC 8: logic & puzzles, casework & listing, grid paths & sharing out, complement & geometric probability, mental math, fractions, percents, ratios, rates and work,
+30 topics covering the AMC 8: similar triangles & area ratios, spatial reasoning (nets, hidden cubes, folding), reading graphs & charts, logic & puzzles, casework & listing, grid paths & sharing out, complement & geometric probability, mental math, fractions, percents, ratios, rates and work,
 divisibility, primes/GCF/LCM, counting divisors, units digits, remainders, sequences,
 equations, exponents and roots, counting, arrangements, probability, statistics, angles
 and polygons, the Pythagorean theorem, area, circles, 3D solids and coordinate geometry.
 
-The season has 51 games, weighted by what the real test asks, based on 200 problems from
+The season has 56 games, weighted by what the real test asks, based on 200 problems from
 2018–2026 (see `analysis/`):
 
-- **27 first games**, one per topic, alternating areas so no two days feel the same.
-- **14 "Level Up" games**, with harder problems and a new trick. They go only to the heavy
-  hitters: logic, the counting & probability chapters, area, Pythagoras, circles, ratios,
+- **30 first games**, one per topic, alternating areas so no two days feel the same.
+- **15 "Level Up" games**, with harder problems and a new trick. They go only to the heavy
+  hitters: logic, the counting & probability chapters, area, Pythagoras, similar triangles, circles, ratios,
   sequences, equations, rates and stats. Number theory and easy arithmetic get one game
   each; arithmetic speed is trained daily in the Shootaround instead.
 - **A practice contest after every 6 games**: 15 questions, 25 minutes, answers only at

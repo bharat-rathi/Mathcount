@@ -4,15 +4,15 @@
   const byId = () => Object.fromEntries(root.TOPICS.map((t) => [t.id, t]));
 
   // Every topic, in first-lesson order. Areas alternate so no two days feel the same.
-  const ORDER = ['mental', 'angles', 'logic', 'fractions', 'counting', 'area', 'ratios', 'sequences', 'pythag', 'combos',
-    'casework', 'divisibility', 'probability', 'percents', 'paths', 'circles', 'gcflcm', 'equations', 'stats', 'divisors',
-    'coords', 'probplus', 'exponents', 'rates', 'units', 'solids', 'remainders'];
+  const ORDER = ['mental', 'angles', 'logic', 'fractions', 'counting', 'area', 'ratios', 'sequences', 'pythag', 'similar', 'combos',
+    'casework', 'divisibility', 'probability', 'percents', 'paths', 'circles', 'gcflcm', 'equations', 'stats', 'graphs', 'divisors',
+    'coords', 'probplus', 'exponents', 'rates', 'units', 'solids', 'spatial', 'remainders'];
 
   // Second ("Level Up") games go to the areas that matter most on the real test, based on
   // 200 problems from 2018–2026 (analysis/README.md): counting & probability is the hardest
   // area, then logic and geometry. Number theory and easy arithmetic get one game each, and
   // arithmetic speed is trained daily in the Shootaround instead.
-  const LEVEL_UP = ['logic', 'counting', 'area', 'casework', 'probability', 'pythag', 'ratios', 'combos',
+  const LEVEL_UP = ['logic', 'counting', 'area', 'casework', 'probability', 'pythag', 'similar', 'ratios', 'combos',
     'circles', 'paths', 'sequences', 'equations', 'rates', 'stats'];
 
   // The last games are real past AMC 8 papers, hosted with MAA permission by LIVE by Po-Shen Loh.
@@ -30,7 +30,7 @@
     PAPERS.forEach((year, i) => plan.push({ type: 'paper', year, url: paperUrl(year), final: i === PAPERS.length - 1 }));
     return plan;
   }
-  const PLAN_VERSION = 2;
+  const PLAN_VERSION = 3;
 
   // Older saves used a different plan. Rebuild his place from the class log: the nth time a
   // topic shows up is that topic's pass n, and each logged contest covers one contest slot.
@@ -71,7 +71,7 @@
       const g = t.gens[i](level);
       const a = String(g.a);
       if (a === 'NaN' || a === 'undefined') continue;
-      return { topic: topicId, level, gen: i, q: g.q, answer: a, choices: U.makeChoices(a, g.wrong), steps: g.steps };
+      return { topic: topicId, level, gen: i, q: g.q, svg: g.svg, answer: a, choices: U.makeChoices(a, g.wrong), steps: g.steps };
     }
     throw new Error(`generator ${topicId}#${i} keeps failing`);
   }
