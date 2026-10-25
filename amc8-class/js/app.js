@@ -25,15 +25,37 @@
     mastery: Object.fromEntries(Object.entries(S.mastery).filter(([, m]) => m.r.length).map(([id, m]) =>
       [TOP[id].name, { pct: Math.round((100 * m.r.reduce((a, b) => a + b, 0)) / m.r.length), n: m.r.length }])),
   });
-  const save = () => {
+  // Google Sheet sync (see sync/SETUP.md): the Apps Script web app keeps a copy of the
+  // state, logs each game, and emails the parents. Apps Script has no CORS preflight, so
+  // writes go out as fire-and-forget text/plain POSTs.
+  const syncPush = (event) => {
+    if (!/^https:\/\/script\.google\.com\//.test(S.syncUrl || '')) return;
+    fetch(S.syncUrl, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ state: S, report: report(), event }) }).catch(() => { /* retried on the next save */ });
+  };
+  async function syncPull() {
+    if (!/^https:\/\/script\.google\.com\//.test(S.syncUrl || '')) return false;
+    const remote = await (await fetch(S.syncUrl)).json();
+    // Take the Sheet copy if it is newer, or if this device has not played a game yet.
+    const fresher = remote && ((remote.savedAt || 0) > (S.savedAt || 0) || (!S.log.length && remote.log && remote.log.length));
+    if (remote && remote.name && fresher) {
+      S = Object.assign(E.newState(), { planVersion: 1 }, remote, { syncUrl: S.syncUrl });
+      E.migratePlan(S);
+      try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { /* private mode */ }
+      return true;
+    }
+    return false;
+  }
+  const save = (event) => {
     S.savedAt = Date.now();
     try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { /* private mode */ }
+    syncPush(event);
     if (cloudRef) {
       const json = JSON.stringify(S);
       const rep = report();
       cloudQueue = cloudQueue.then(() => cloudRef.set({ json })).then(() => reportRef && reportRef.set(rep)).catch(() => { /* stays saved locally */ });
     }
   };
+  syncPull().then((changed) => { if (changed && onHome) home(); }).catch(() => { /* offline: keep the local copy */ });
   (async () => {
     if (!window.claude || !window.claude.use) return;
     const [db, user] = await Promise.all([window.claude.use('db'), window.claude.use('user')]);
@@ -190,10 +212,17 @@
         <label for="nm">Player name</label><input id="nm" autocomplete="off" maxlength="20">
         <label for="num">Jersey number</label><input id="num" type="number" min="0" max="99" value="23">
         <label for="dt">AMC 8 date (check the MAA site; this can be changed later)</label><input id="dt" type="date" value="${S.contestDate}">
+        <details style="text-align:left;margin-top:12px"><summary>Already playing on another device?</summary>
+          <label for="sy">Paste the Google Sheet sync URL to bring your progress here</label><input id="sy" placeholder="https://script.google.com/macros/s/…/exec">
+          <p></p><button class="btn ghost" id="restore">Restore my progress</button></details>
         <p></p><button class="btn big go" id="go">Let's go!</button>
       </div>`);
     onHome = true;
     $('#nm').focus();
+    $('#restore').onclick = () => {
+      S.syncUrl = $('#sy').value.trim();
+      syncPull().then((ok) => { if (ok) home(); else alert('No saved progress found at that URL.'); }).catch(() => alert('Could not reach that sync URL. Check it and try again.'));
+    };
     $('#go').onclick = () => { const n = $('#nm').value.trim(); if (!n) return $('#nm').focus(); S.name = n; S.number = Math.max(0, Math.min(99, parseInt($('#num').value, 10) || 0)); S.contestDate = $('#dt').value || S.contestDate; save(); home(); };
   }
 
@@ -570,7 +599,7 @@
     else S.xp += P.xp;
     const win = !P.practice && earned.win;
     const pack = P.practice ? null : openPack(win);
-    save();
+    save(P.practice ? null : S.log[S.log.length - 1]);
     const leveled = E.levelOf(S.xp).lvl > before;
     confetti(stars * 40); sfx.level();
     const review = P.review ? `<div class="card"><h3>Review your answers</h3>${P.review.map(({ q, pick }, i) => `
@@ -723,15 +752,21 @@
         <label for="nm">Student name</label><input id="nm" value="${esc(S.name)}">
         <label for="dt">AMC 8 date</label><input id="dt" type="date" value="${S.contestDate}">
         <label for="jump">Jump to class</label><select id="jump">${E.buildPlan().map((c, i) => `<option value="${i}" ${i === S.classIdx ? 'selected' : ''}>#${i + 1} ${c.type === 'paper' ? `🏆 Real ${c.year} AMC 8` : c.type === 'mock' ? '📝 Practice contest' : `${TOP[c.topic].name}${c.pass === 2 ? ' (Level Up)' : ''}`}</option>`).join('')}</select>
+        <label for="sync">Google Sheet sync URL (optional, see sync/SETUP.md)</label><input id="sync" placeholder="https://script.google.com/macros/s/…/exec" value="${esc(S.syncUrl || '')}">
+        <p class="muted" style="font-size:14px;margin:4px 0 0">${S.syncUrl ? '🔗 Progress is copied to your Google Sheet after every game.' : 'Not connected: progress stays in this browser.'}</p>
         <label><input type="checkbox" id="snd" style="width:auto" ${S.sound ? 'checked' : ''}> Sound effects</label>
         <label><input type="checkbox" id="vc" style="width:auto" ${S.voice ? 'checked' : ''}> Read every slide and question aloud</label>
         <p></p><div class="row"><button class="btn" id="sv">Save</button><button class="btn ghost" id="reset">Reset all progress</button></div></div>`);
     $('#back').onclick = home;
     $('#sv').onclick = () => {
       S.name = $('#nm').value.trim() || S.name; S.contestDate = $('#dt').value || S.contestDate;
-      S.classIdx = +$('#jump').value; S.sound = $('#snd').checked; S.voice = $('#vc').checked; save(); home();
+      S.classIdx = +$('#jump').value; S.sound = $('#snd').checked; S.voice = $('#vc').checked;
+      const url = $('#sync').value.trim(), fresh = url && url !== S.syncUrl;
+      S.syncUrl = url;
+      if (fresh) syncPull().then((changed) => { if (!changed) save(); home(); }).catch(() => { alert('Could not reach that sync URL. Check it and try again.'); save(); home(); });
+      else { save(); home(); }
     };
-    $('#reset').onclick = () => { if (confirm('Erase ALL progress, XP and badges?')) { S = E.newState(); save(); home(); } };
+    $('#reset').onclick = () => { if (confirm('Erase ALL progress, XP and badges?')) { S = Object.assign(E.newState(), { syncUrl: S.syncUrl }); save(); home(); } };
   }
 
   home();

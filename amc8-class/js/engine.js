@@ -57,7 +57,7 @@
       wins: 0, losses: 0, timeouts: 2, jersey: 'gold', number: 23, court: 'hardwood',
       unlocks: ['gold', 'hardwood'], cards: [], shootPB: 0, facts: {},
       // Clutch problems already seen, and why answers went wrong (careless/concept/trick/time).
-      hardSeen: [], mistakes: { careless: 0, concept: 0, trick: 0, time: 0 }, mistakeLog: [] };
+      syncUrl: '', hardSeen: [], mistakes: { careless: 0, concept: 0, trick: 0, time: 0 }, mistakeLog: [] };
   }
 
   const dayKey = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;

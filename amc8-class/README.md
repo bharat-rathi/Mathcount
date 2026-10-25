@@ -5,8 +5,12 @@ student with ADHD: one idea on screen at a time, visuals that draw themselves, i
 feedback, a movement break halfway through, and a game layer (XP, streaks, combos,
 badges, boss battles).
 
-Open `index.html` in any browser (laptop or tablet). Nothing to install, and no account.
-Progress is saved in that browser.
+**Play it:** <https://bharat-rathi.github.io/Mathcount/amc8-class/> (GitHub Pages, published
+from `main`). Opening `index.html` from disk works too. Nothing to install, and no account.
+
+Progress is saved in the browser. To copy it to a Google Sheet you own, and to get a daily
+email, follow [`sync/SETUP.md`](sync/SETUP.md). The Sheet also lets him restore his progress
+on another device.
 
 ## Basketball theme
 
@@ -95,7 +99,8 @@ contest date, sound and read-aloud mode. You can also jump to any class or reset
 ## Development
 
 ```
-node amc8-class/tests/test.mjs
+node amc8-class/tests/test.mjs        # questions, plan, engine
+node amc8-class/tests/sync-test.mjs   # the Google Apps Script, against fake Google services
 ```
 
 The test runs every question generator thousands of times at each level. It checks each
