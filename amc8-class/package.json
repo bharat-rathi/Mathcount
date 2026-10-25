@@ -1,0 +1,11 @@
+{
+  "name": "math-hoops",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node tests/test.mjs && node tests/email-test.mjs && node tests/db-test.mjs"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.2.17"
+  }
+}
