@@ -9,14 +9,21 @@
   const KEY = 'amc8-class-v1';
   const LETTERS = 'ABCDE';
 
-  // ── Saved progress (browser storage; the page still works if it is blocked)
-  let S;
-  try { S = Object.assign(E.newState(), { planVersion: 1 }, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch { S = E.newState(); }
-  if (S.name) E.migratePlan(S); else S.planVersion = E.PLAN_VERSION;
-  // Cloud copy: a private per-account record, so progress follows him to any device.
-  // The browser copy stays as a fallback and the newer of the two wins on load.
-  let cloudRef = null, reportRef = null, cloudQueue = Promise.resolve(), onHome = false;
-  // A small summary the parents' daily email is built from (readable by the page's owner, not by him).
+  // ── Saved progress. It always lives in this browser. With Supabase set up (js/config.js),
+  // a signed-in parent picks a kid profile and every save also goes to that kid's row; on
+  // load, the newer of the two copies wins.
+  const C = window.Cloud;
+  let kidId = null, onHome = false;
+  const keyFor = () => (kidId ? `${KEY}:${kidId}` : KEY);
+  const fromSaved = (raw) => {
+    const st = Object.assign(E.newState(), { planVersion: 1 }, raw || {});
+    if (st.name) E.migratePlan(st); else st.planVersion = E.PLAN_VERSION;
+    return st;
+  };
+  const readLocal = () => { try { return JSON.parse(localStorage.getItem(keyFor()) || 'null'); } catch { return null; } };
+  const pref = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch { return null; } };
+  let S = fromSaved(readLocal());
+  // A small summary for the parent dashboard and the daily email.
   const report = () => ({
     name: S.name, updatedAt: new Date().toISOString(), contestDate: S.contestDate,
     classIdx: S.classIdx, totalClasses: E.buildPlan().length, streak: S.streak, bestStreak: S.bestStreak,
@@ -25,56 +32,11 @@
     mastery: Object.fromEntries(Object.entries(S.mastery).filter(([, m]) => m.r.length).map(([id, m]) =>
       [TOP[id].name, { pct: Math.round((100 * m.r.reduce((a, b) => a + b, 0)) / m.r.length), n: m.r.length }])),
   });
-  // Google Sheet sync (see sync/SETUP.md): the Apps Script web app keeps a copy of the
-  // state, logs each game, and emails the parents. Apps Script has no CORS preflight, so
-  // writes go out as fire-and-forget text/plain POSTs.
-  const syncPush = (event) => {
-    if (!/^https:\/\/script\.google\.com\//.test(S.syncUrl || '')) return;
-    fetch(S.syncUrl, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ state: S, report: report(), event }) }).catch(() => { /* retried on the next save */ });
-  };
-  async function syncPull() {
-    if (!/^https:\/\/script\.google\.com\//.test(S.syncUrl || '')) return false;
-    const remote = await (await fetch(S.syncUrl)).json();
-    // Take the Sheet copy if it is newer, or if this device has not played a game yet.
-    const fresher = remote && ((remote.savedAt || 0) > (S.savedAt || 0) || (!S.log.length && remote.log && remote.log.length));
-    if (remote && remote.name && fresher) {
-      S = Object.assign(E.newState(), { planVersion: 1 }, remote, { syncUrl: S.syncUrl });
-      E.migratePlan(S);
-      try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { /* private mode */ }
-      return true;
-    }
-    return false;
-  }
-  const save = (event) => {
+  const save = (game) => {
     S.savedAt = Date.now();
-    try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { /* private mode */ }
-    syncPush(event);
-    if (cloudRef) {
-      const json = JSON.stringify(S);
-      const rep = report();
-      cloudQueue = cloudQueue.then(() => cloudRef.set({ json })).then(() => reportRef && reportRef.set(rep)).catch(() => { /* stays saved locally */ });
-    }
+    try { localStorage.setItem(keyFor(), JSON.stringify(S)); } catch { /* private mode */ }
+    if (kidId) C.saveKid(kidId, S, report(), game);
   };
-  syncPull().then((changed) => { if (changed && onHome) home(); }).catch(() => { /* offline: keep the local copy */ });
-  (async () => {
-    if (!window.claude || !window.claude.use) return;
-    const [db, user] = await Promise.all([window.claude.use('db'), window.claude.use('user')]);
-    const id = user && (await user.id());
-    if (!db || !id) return;
-    const ref = db.doc(`data/users/${id}/amc8`);
-    try {
-      const snap = await ref.get();
-      const remote = snap.exists && JSON.parse(snap.data().json || 'null');
-      cloudRef = ref;
-      reportRef = db.doc(`reports/${id}`);
-      if (remote && (remote.savedAt || 0) > (S.savedAt || 0)) {
-        S = Object.assign(E.newState(), { planVersion: 1 }, remote);
-        E.migratePlan(S);
-        try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { /* private mode */ }
-      } else if (S.name) save();
-      if (onHome) home();
-    } catch { /* offline or refused: keep using the browser copy */ }
-  })();
 
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const h = (html) => { onHome = false; app.innerHTML = html; window.scrollTo(0, 0); };
@@ -172,7 +134,7 @@
         <div class="row" style="margin:10px 0"><span class="pill">🔥 ${S.streak}-day streak</span><span class="pill" title="A timeout saves your streak if you miss one day">⏸️ ${S.timeouts} timeout${S.timeouts === 1 ? '' : 's'}</span><span class="pill">🏆 Finals in ${daysLeft} days</span></div>
         <div class="row spread"><b>Level ${L.lvl}</b><span class="muted">${L.into} / ${L.need} pts</span></div>
         <div class="xpbar"><i style="width:${(100 * L.into) / L.need}%"></i></div>
-        <p class="muted" style="margin:8px 0 0;font-size:14px">${cloudRef ? '☁️ Saved to your account' : '💾 Saved on this device'}</p>
+        <p class="muted" style="margin:8px 0 0;font-size:14px">${kidId ? '☁️ Saved to your family account' : '💾 Saved on this device'}</p>
       </div>
       <div class="card">
         <span class="tag">${doneToday ? 'Done for today! Bonus game?' : "Today's game"} · Game ${S.classIdx + 1} of ${plan.length}</span>
@@ -191,6 +153,7 @@
         <button class="btn ghost" id="locker">👕 Locker room</button>
         <button class="btn ghost" id="badges">🏅 Trophies (${S.badges.length})</button>
         <button class="btn ghost" id="parent">👪 Parent page</button>
+        ${kidId ? '<button class="btn ghost" id="family">🔄 Switch player / Family</button>' : ''}
       </div>`);
     onHome = true;
     $('#start').onclick = () => startClass(S.classIdx);
@@ -199,6 +162,7 @@
     $('#cards').onclick = playbookPage;
     $('#locker').onclick = lockerRoom;
     $('#parent').onclick = parentPage;
+    if ($('#family')) $('#family').onclick = () => familyScreen(false);
     const cur = app.querySelector('.node.now');
     if (cur) cur.scrollIntoView({ inline: 'center', block: 'nearest' });
     keyHandler = (e) => { if (e.key === 'Enter') startClass(S.classIdx); };
@@ -212,17 +176,11 @@
         <label for="nm">Player name</label><input id="nm" autocomplete="off" maxlength="20">
         <label for="num">Jersey number</label><input id="num" type="number" min="0" max="99" value="23">
         <label for="dt">AMC 8 date (check the MAA site; this can be changed later)</label><input id="dt" type="date" value="${S.contestDate}">
-        <details style="text-align:left;margin-top:12px"><summary>Already playing on another device?</summary>
-          <label for="sy">Paste the Google Sheet sync URL to bring your progress here</label><input id="sy" placeholder="https://script.google.com/macros/s/…/exec">
-          <p></p><button class="btn ghost" id="restore">Restore my progress</button></details>
+
         <p></p><button class="btn big go" id="go">Let's go!</button>
       </div>`);
     onHome = true;
     $('#nm').focus();
-    $('#restore').onclick = () => {
-      S.syncUrl = $('#sy').value.trim();
-      syncPull().then((ok) => { if (ok) home(); else alert('No saved progress found at that URL.'); }).catch(() => alert('Could not reach that sync URL. Check it and try again.'));
-    };
     $('#go').onclick = () => { const n = $('#nm').value.trim(); if (!n) return $('#nm').focus(); S.name = n; S.number = Math.max(0, Math.min(99, parseInt($('#num').value, 10) || 0)); S.contestDate = $('#dt').value || S.contestDate; save(); home(); };
   }
 
@@ -752,8 +710,6 @@
         <label for="nm">Student name</label><input id="nm" value="${esc(S.name)}">
         <label for="dt">AMC 8 date</label><input id="dt" type="date" value="${S.contestDate}">
         <label for="jump">Jump to class</label><select id="jump">${E.buildPlan().map((c, i) => `<option value="${i}" ${i === S.classIdx ? 'selected' : ''}>#${i + 1} ${c.type === 'paper' ? `🏆 Real ${c.year} AMC 8` : c.type === 'mock' ? '📝 Practice contest' : `${TOP[c.topic].name}${c.pass === 2 ? ' (Level Up)' : ''}`}</option>`).join('')}</select>
-        <label for="sync">Google Sheet sync URL (optional, see sync/SETUP.md)</label><input id="sync" placeholder="https://script.google.com/macros/s/…/exec" value="${esc(S.syncUrl || '')}">
-        <p class="muted" style="font-size:14px;margin:4px 0 0">${S.syncUrl ? '🔗 Progress is copied to your Google Sheet after every game.' : 'Not connected: progress stays in this browser.'}</p>
         <label><input type="checkbox" id="snd" style="width:auto" ${S.sound ? 'checked' : ''}> Sound effects</label>
         <label><input type="checkbox" id="vc" style="width:auto" ${S.voice ? 'checked' : ''}> Read every slide and question aloud</label>
         <p></p><div class="row"><button class="btn" id="sv">Save</button><button class="btn ghost" id="reset">Reset all progress</button></div></div>`);
@@ -761,13 +717,99 @@
     $('#sv').onclick = () => {
       S.name = $('#nm').value.trim() || S.name; S.contestDate = $('#dt').value || S.contestDate;
       S.classIdx = +$('#jump').value; S.sound = $('#snd').checked; S.voice = $('#vc').checked;
-      const url = $('#sync').value.trim(), fresh = url && url !== S.syncUrl;
-      S.syncUrl = url;
-      if (fresh) syncPull().then((changed) => { if (!changed) save(); home(); }).catch(() => { alert('Could not reach that sync URL. Check it and try again.'); save(); home(); });
-      else { save(); home(); }
+      save(); home();
     };
-    $('#reset').onclick = () => { if (confirm('Erase ALL progress, XP and badges?')) { S = Object.assign(E.newState(), { syncUrl: S.syncUrl }); save(); home(); } };
+    $('#reset').onclick = () => { if (confirm('Erase ALL progress, XP and badges?')) { S = fromSaved({ name: S.name, number: S.number }); save(); home(); } };
   }
 
-  home();
+  // ── Family accounts (only when Supabase is configured in js/config.js)
+  async function boot() {
+    if (!C.enabled || pref('mh-local') === '1') return home();
+    h('<div class="card" style="text-align:center"><div style="font-size:56px">🏀</div><p>Loading…</p></div>');
+    try {
+      if (!(await C.session())) return authScreen();
+      return familyScreen(true);
+    } catch { return home(); }
+  }
+
+  // Parents sign in with an emailed link; no passwords, and kids never need an account.
+  function authScreen() {
+    h(`<div class="card" style="text-align:center"><div style="font-size:64px">🏀</div><h1>Math Hoops</h1>
+        <p>Parents: sign in to save your kids' progress on every device and get a daily email.</p>
+        <label for="em">Parent email</label><input id="em" type="email" autocomplete="email" placeholder="you@example.com">
+        <p></p><button class="btn big go" id="send">Email me a sign-in link</button>
+        <div id="st" class="muted" style="margin-top:10px"></div>
+        <hr style="border:0;border-top:1px solid var(--line);margin:18px 0">
+        <button class="btn ghost" id="local">Play on this device only (no account)</button>
+        <p class="muted" style="font-size:13px;margin-top:12px">We store only nicknames and game progress. You can delete your family's data at any time.</p></div>`);
+    $('#send').onclick = async () => {
+      const em = $('#em').value.trim();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) return $('#em').focus();
+      $('#send').disabled = true; $('#st').textContent = 'Sending…';
+      try { await C.signIn(em); $('#st').innerHTML = `📬 Check <b>${esc(em)}</b> for a sign-in link, then open it on this device.`; }
+      catch (e) { $('#st').textContent = `Could not send the link: ${e.message || e}`; $('#send').disabled = false; }
+    };
+    $('#local').onclick = () => { pref('mh-local', '1'); kidId = null; S = fromSaved(readLocal()); home(); };
+  }
+
+  // Load a kid's profile: the newer of the browser copy and the cloud copy wins.
+  function playAs(kid) {
+    kidId = kid.id; pref('mh-kid', kid.id);
+    const local = readLocal(), remote = kid.state && kid.state.name ? kid.state : null;
+    const pick = !local ? remote : !remote ? local : (remote.savedAt || 0) > (local.savedAt || 0) ? remote : local;
+    S = fromSaved(pick || { name: kid.name });
+    if (!S.name) { S.name = kid.name; save(); }
+    home();
+  }
+
+  // "Who's playing?" plus the parent's view of every kid and the family settings.
+  async function familyScreen(autoResume) {
+    let kids, settings;
+    try { [kids, settings] = await Promise.all([C.listKids(), C.loadSettings()]); }
+    catch (e) { h(`<div class="card"><p>Could not reach your family account (${esc(e.message || e)}).</p><button class="btn" id="off">Play offline</button></div>`); $('#off').onclick = home; return; }
+    const last = kids.find((k) => k.id === pref('mh-kid'));
+    if (autoResume && last) return playAs(last);
+    const tz = (settings && settings.timezone) || Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York';
+    const card = (k) => { const r = k.report || {}; const game = r.classIdx != null ? `Game ${r.classIdx + 1} of ${r.totalClasses}` : 'New player';
+      const lastDay = r.recent && r.recent.length ? r.recent[r.recent.length - 1].day : '—';
+      return `<div class="card kid"><div class="row spread"><h2 style="margin:0">🏀 ${esc(k.name)}</h2><button class="btn go" data-k="${k.id}">Play ▶</button></div>
+        <p class="muted" style="margin:6px 0 0">${game} · 🔥 ${r.streak || 0}-day streak · last played ${esc(lastDay)}</p></div>`; };
+    h(`<div class="card"><h1>Who's playing?</h1><p class="muted">Pick a player. Parents: the Parent page inside each player shows full stats.</p></div>
+      ${kids.map(card).join('')}
+      ${kids.length < 6 ? `<div class="card"><h3>➕ Add a player</h3>
+        <label for="kn">Nickname (no full names needed)</label><input id="kn" maxlength="20" autocomplete="off">
+        <label for="kj">Jersey number</label><input id="kj" type="number" min="0" max="99" value="23" style="max-width:120px">
+        <p></p><button class="btn" id="add">Add player</button></div>` : ''}
+      <div class="card"><h3>📬 Daily email</h3>
+        <label for="et">Send to (comma-separated)</label><input id="et" value="${esc(((settings && settings.email_to) || []).join(', '))}" placeholder="you@example.com, partner@example.com">
+        <label for="eh">Time (${esc(tz)})</label><select id="eh">${[...Array(24).keys()].map((x) => `<option value="${x}" ${x === ((settings && settings.send_hour) ?? 20) ? 'selected' : ''}>${(x % 12) || 12}:00 ${x < 12 ? 'AM' : 'PM'}</option>`).join('')}</select>
+        <label><input type="checkbox" id="eo" style="width:auto" ${!settings || settings.email_enabled ? 'checked' : ''}> Send the daily email</label>
+        <p></p><button class="btn" id="es">Save email settings</button> <span id="ess" class="muted"></span></div>
+      <div class="card"><div class="row"><button class="btn ghost" id="out">Sign out</button><button class="btn ghost" id="del">Delete my family's data</button></div></div>`);
+    app.querySelectorAll('[data-k]').forEach((b) => (b.onclick = () => playAs(kids.find((k) => k.id === b.dataset.k))));
+    if ($('#add')) $('#add').onclick = async () => {
+      const n = $('#kn').value.trim(); if (!n) return $('#kn').focus();
+      try {
+        const k = await C.addKid(n);
+        kidId = k.id; pref('mh-kid', k.id);
+        S = fromSaved({ name: n, number: Math.max(0, Math.min(99, parseInt($('#kj').value, 10) || 0)) });
+        save(); home();
+      } catch (e) { alert(`Could not add the player: ${e.message || e}`); }
+    };
+    $('#es').onclick = async () => {
+      const to = $('#et').value.split(',').map((x) => x.trim()).filter(Boolean);
+      try { await C.saveSettings({ email_to: to, send_hour: +$('#eh').value, email_enabled: $('#eo').checked, timezone: tz }); $('#ess').textContent = '✅ Saved'; }
+      catch (e) { $('#ess').textContent = `Could not save: ${e.message || e}`; }
+    };
+    $('#out').onclick = async () => { await C.signOut(); kidId = null; pref('mh-kid', null); authScreen(); };
+    $('#del').onclick = async () => {
+      if (!confirm("Delete ALL of your family's players, progress, and your account? This cannot be undone.")) return;
+      if (prompt('Type DELETE to confirm') !== 'DELETE') return;
+      try { await C.deleteFamily(); } catch (e) { return alert(`Could not delete: ${e.message || e}`); }
+      kids.forEach((k) => { try { localStorage.removeItem(`${KEY}:${k.id}`); } catch { /* ignore */ } });
+      await C.signOut(); kidId = null; pref('mh-kid', null); authScreen();
+    };
+  }
+
+  boot();
 })();

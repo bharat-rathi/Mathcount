@@ -8,9 +8,10 @@ badges, boss battles).
 **Play it:** <https://bharat-rathi.github.io/Mathcount/amc8-class/> (GitHub Pages, published
 from `main`). Opening `index.html` from disk works too. Nothing to install, and no account.
 
-Progress is saved in the browser. To copy it to a Google Sheet you own, and to get a daily
-email, follow [`sync/SETUP.md`](sync/SETUP.md). The Sheet also lets him restore his progress
-on another device.
+Progress is saved in the browser. For family accounts, follow
+[`supabase/SETUP.md`](supabase/SETUP.md). Parents sign in with an emailed link and add a nickname
+profile for each kid. Progress follows the kid to any device, and parents get a daily email.
+See [`PRIVACY.md`](PRIVACY.md) for what's stored.
 
 ## Basketball theme
 
@@ -99,8 +100,10 @@ contest date, sound and read-aloud mode. You can also jump to any class or reset
 ## Development
 
 ```
-node amc8-class/tests/test.mjs        # questions, plan, engine
-node amc8-class/tests/sync-test.mjs   # the Google Apps Script, against fake Google services
+cd amc8-class && npm install && npm test
+# tests/test.mjs        questions, plan, engine
+# tests/email-test.mjs  the daily email builder
+# tests/db-test.mjs     database rules (schema.sql in an in-memory Postgres)
 ```
 
 The test runs every question generator thousands of times at each level. It checks each
