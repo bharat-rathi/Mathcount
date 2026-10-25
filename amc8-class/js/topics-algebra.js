@@ -81,9 +81,9 @@
   T.push({
     id: 'counting', name: 'Counting: Multiply the Choices', emoji: '🎲', color: '#fab005',
     slides: [
-      { h: 'Tree of choices',
+      { type: 'predict', h: 'Outfit check', ask: 'You have {g:2 shirts} and {g:3 pairs of pants}. How many {f:outfits}?', options: ['5', '6', '8', '9'], answer: '6',
         svg: V.svg(V.circ(30, 90, 10, 'd', 0) + [40, 140].map((y, i) => V.line(40, 90, 120, y, '', 0.5) + V.circ(130, y, 12, 'a', 0.8) + [y - 25, y, y + 25].map((yy, j) => V.line(142, y, 230, yy, '', 1.3) + V.circ(240, yy, 9, 'b', 1.6 + j * 0.2)).join('')).join('') + V.t(260, 95, '2×3=6', 'small', 2.5)),
-        text: '2 shirts and 3 pants: each shirt branches into 3 outfits. 2 × 3 = 6. Independent choices multiply.' },
+        text: 'Each shirt branches into 3 outfits: {g:2 × 3} = {a:6}. Independent choices {g:multiply}, they do not add.' },
       { h: 'Slots: fill one at a time',
         svg: V.svg(['10', '9', '8'].map((s, i) => V.rect(30 + i * 90, 60, 70, 70, ['a', 'b', 'c'][i], i * 0.6) + V.t(52 + i * 90, 105, s, 'big', i * 0.6)).join('') + V.t(20, 165, 'no repeats → 10 × 9 × 8 = 720', 'small', 2.2)),
         text: 'Draw a slot for each position. Write how many options are left, then multiply.' },
@@ -106,15 +106,15 @@
   T.push({
     id: 'combos', name: 'Arrangements & Choosing', emoji: '🎟️', color: '#e64980',
     slides: [
+      { type: 'predict', h: 'Handshakes', ask: '{g:5 players} high-five each other once after the game. How many {f:high-fives}?', options: ['5', '10', '20', '25'], answer: '10',
+        svg: V.svg([0, 1, 2, 3, 4].map((i) => [i + 1, i + 2, i + 3, i + 4].filter((j) => j < 5).map((j) => V.line(160 + 70 * Math.cos(i * 1.2566), 90 + 70 * Math.sin(i * 1.2566), 160 + 70 * Math.cos(j * 1.2566), 90 + 70 * Math.sin(j * 1.2566), '', 0.5 + i * 0.3)).join('') + V.circ(160 + 70 * Math.cos(i * 1.2566), 90 + 70 * Math.sin(i * 1.2566), 12, 'b', 0)).join('')),
+        text: 'Each player high-fives 4 others: 5 × 4 = 20, but every high-five got {g:counted twice}. 20 ÷ 2 = {a:10}.' },
       { h: 'Order matters → arrange',
         svg: V.svg(['A', 'B', 'C'].map((s, i) => V.circ(70 + i * 90, 70, 28, ['a', 'b', 'c'][i], i * 0.4) + V.t(62 + i * 90, 78, s, 'big', i * 0.4)).join('') + V.t(20, 150, '3! = 3 × 2 × 1 = 6 lineups', 'big', 1.8)),
         text: 'n different things in a row: n! ways. Gold/silver/bronze from 8 runners: 8 × 7 × 6.' },
       { h: 'Order does not matter → divide',
         svg: V.svg(V.t(20, 50, 'pick 2 of 5 friends', 'small', 0) + V.t(20, 100, '5 × 4 = 20 ordered', 'big', 1) + V.t(20, 150, '÷ 2 = 10 pairs', 'big c-t', 2)),
         text: 'A team of 2 is the same as its reverse, so divide by 2! (and by 3! for teams of 3). That is "n choose k".' },
-      { h: 'Handshakes',
-        svg: V.svg([0, 1, 2, 3, 4].map((i) => [i + 1, i + 2, i + 3, i + 4].filter((j) => j < 5).map((j) => V.line(160 + 70 * Math.cos(i * 1.2566), 90 + 70 * Math.sin(i * 1.2566), 160 + 70 * Math.cos(j * 1.2566), 90 + 70 * Math.sin(j * 1.2566), '', 0.5 + i * 0.3)).join('') + V.circ(160 + 70 * Math.cos(i * 1.2566), 90 + 70 * Math.sin(i * 1.2566), 12, 'b', 0)).join('')),
-        text: '5 people, everyone shakes hands once: 5 × 4 ÷ 2 = 10 lines. Same as choosing 2 of 5.' },
     ],
     tips: [
       { name: 'Repeated letters', how: 'Arrange letters with repeats: total! ÷ (repeat count)! for each repeat.', ex: 'BOOK: 4! ÷ 2! = 12' },
@@ -131,12 +131,12 @@
   T.push({
     id: 'probability', name: 'Probability', emoji: '🎯', color: '#12b886',
     slides: [
+      { type: 'predict', h: 'Two dice: the best sum', ask: 'Roll {g:two dice}. Which {f:sum} comes up most often?', options: ['6', '7', '8', '12'], answer: '7',
+        svg: V.svg([...Array(36)].map((_, i) => { const r = Math.floor(i / 6), c = i % 6; return V.rect(80 + c * 26, 15 + r * 26, 22, 22, r + c + 2 === 7 ? 'b' : 'empty', (r + c) * 0.1); }).join('') + V.t(250, 95, '7: 6/36', 'small', 1.5)),
+        text: '36 equally likely pairs. A sum of {a:7} happens 6 ways (the diagonal), more than any other: P = 6/36 = 1/6.' },
       { h: 'Probability = good ÷ total',
         svg: V.svg(V.dots(2, 5, 60, 60, 40, 'a', 0) + V.dots(1, 3, 60, 60, 40, 'b', 1) + V.t(20, 165, '3 blue of 10 → P = 3/10', 'small', 2)),
         text: 'Count the outcomes you want and divide by all the equally likely outcomes.' },
-      { h: 'Two dice: a 6 × 6 grid',
-        svg: V.svg([...Array(36)].map((_, i) => { const r = Math.floor(i / 6), c = i % 6; return V.rect(80 + c * 26, 15 + r * 26, 22, 22, r + c + 2 === 7 ? 'b' : 'empty', (r + c) * 0.1); }).join('') + V.t(250, 95, '7: 6/36', 'small', 1.5)),
-        text: '36 equally likely pairs. A sum of 7 happens 6 ways (the diagonal), so P = 1/6.' },
       { h: 'Without replacement',
         svg: V.svg(V.t(20, 50, '3 red, 2 blue — draw 2', 'small', 0) + V.t(20, 100, 'both red: 3/5 × 2/4', 'big', 1) + V.t(20, 150, '= 3/10', 'big c-t', 2)),
         text: 'After the first draw, there is one fewer marble. Multiply the chances step by step.' },

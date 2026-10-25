@@ -5,8 +5,8 @@
 
   // Topics alternate between number, algebra/counting and geometry so no two days feel the same.
   const ORDER = ['mental', 'angles', 'logic', 'fractions', 'counting', 'percents', 'area', 'ratios', 'sequences',
-    'pythag', 'divisibility', 'probability', 'rates', 'circles', 'gcflcm', 'equations', 'stats',
-    'divisors', 'coords', 'exponents', 'combos', 'units', 'solids', 'remainders'];
+    'pythag', 'combos', 'casework', 'divisibility', 'probability', 'rates', 'paths', 'circles', 'gcflcm', 'equations', 'stats',
+    'divisors', 'coords', 'probplus', 'exponents', 'units', 'solids', 'remainders'];
 
   // Pass 1 teaches each topic. Pass 2 revisits it with harder problems and a new trick.
   // A practice contest follows every 6th class.

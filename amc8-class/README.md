@@ -46,7 +46,7 @@ A wrong first answer gets one more try. After that, the worked solution appears 
 
 ## The course
 
-24 topics covering the AMC 8: logic & puzzles, mental math, fractions, percents, ratios, rates and work,
+27 topics covering the AMC 8: logic & puzzles, casework & listing, grid paths & sharing out, complement & geometric probability, mental math, fractions, percents, ratios, rates and work,
 divisibility, primes/GCF/LCM, counting divisors, units digits, remainders, sequences,
 equations, exponents and roots, counting, arrangements, probability, statistics, angles
 and polygons, the Pythagorean theorem, area, circles, 3D solids and coordinate geometry.
