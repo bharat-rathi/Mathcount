@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'js');
 const ctx = vm.createContext({ console, Math, Date });
-for (const f of ['util.js', 'viz.js', 'hoops.js', 'topics-number.js', 'topics-algebra.js', 'topics-geometry.js', 'engine.js']) {
+for (const f of ['util.js', 'viz.js', 'hoops.js', 'topics-number.js', 'topics-algebra.js', 'topics-geometry.js', 'topics-logic.js', 'engine.js']) {
   vm.runInContext(fs.readFileSync(path.join(dir, f), 'utf8'), ctx, { filename: f });
 }
 const { TOPICS, Engine, U } = ctx;
@@ -24,7 +24,13 @@ if (new Set(ids).size !== ids.length) fail('duplicate topic ids');
 for (const t of TOPICS) {
   if (t.slides.length < 3) fail(`${t.id}: needs 3 slides`);
   if (t.tips.length < 2) fail(`${t.id}: needs 2 tips`);
-  for (const s of t.slides) if (!s.svg.startsWith('<svg') || bad(s.svg)) fail(`${t.id}: bad svg in "${s.h}"`);
+  for (const s of t.slides) {
+    if (s.svg && (!s.svg.startsWith('<svg') || bad(s.svg))) fail(`${t.id}: bad svg in "${s.h}"`);
+    if (s.type === 'predict' && !s.options.includes(s.answer)) fail(`${t.id}: predict answer missing in "${s.h}"`);
+    if (s.type === 'order' && [...s.answer].sort().join() !== [...s.items].sort().join()) fail(`${t.id}: order items mismatch in "${s.h}"`);
+    if (s.type === 'steps' && (!s.steps.length || s.steps.some((x) => !x.say))) fail(`${t.id}: empty step in "${s.h}"`);
+    if (!s.type && !s.svg) fail(`${t.id}: plain slide needs a picture in "${s.h}"`);
+  }
   t.gens.forEach((_, gi) => {
     for (const level of [1, 2, 3]) {
       for (let k = 0; k < 400; k++) {

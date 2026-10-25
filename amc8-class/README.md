@@ -37,11 +37,16 @@ win–loss record (a game is a win at 70% or better), and ranks run from Rookie 
 | ✏️ Quiz round 2 | 5 harder questions |
 | 🐉 Boss battle | One hard problem, styled like AMC problems #15–25 |
 
+Lessons use hands-on slides: **predict** (he guesses first, then the picture explains),
+**steps** (a worked example revealed one tap at a time, newest step highlighted) and
+**order** (tap items into the right order). Every lesson uses the same color code:
+blue = given, orange = what we're finding, green = the answer.
+
 A wrong first answer gets one more try. After that, the worked solution appears step by step.
 
 ## The course
 
-23 topics covering the AMC 8: mental math, fractions, percents, ratios, rates and work,
+24 topics covering the AMC 8: logic & puzzles, mental math, fractions, percents, ratios, rates and work,
 divisibility, primes/GCF/LCM, counting divisors, units digits, remainders, sequences,
 equations, exponents and roots, counting, arrangements, probability, statistics, angles
 and polygons, the Pythagorean theorem, area, circles, 3D solids and coordinate geometry.

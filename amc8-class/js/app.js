@@ -240,21 +240,115 @@
     if (s.kind === 'mock') return mock(s);
   }
 
+  // Color code used in all lessons: {g:given} blue, {f:find} orange, {a:answer} green.
+  const fmt = (t) => String(t).replace(/\{([gfa]):([^}]*)\}/g, (_, k, x) => `<span class="cc-${k}">${x}</span>`);
+  const plain = (t) => String(t).replace(/\{[gfa]:([^}]*)\}/g, '$1');
+
   function slide(s) {
     const t = TOP[s.topic], sl = t.slides[s.i];
+    const label = `🎬 Film room · ${t.emoji} ${t.name}${s.pass === 2 ? ' · Level Up' : ''} · ${s.i + 1} of ${t.slides.length}`;
+    if (sl.type === 'predict') return predictSlide(sl, label);
+    if (sl.type === 'steps') return stepsSlide(sl, label);
+    if (sl.type === 'order') return orderSlide(sl, label);
     frame(`<div class="card">
         <h2>${sl.h}</h2>
         <div id="pic">${sl.svg}</div>
-        <p class="slide-text">${sl.text}</p>
+        <p class="slide-text">${fmt(sl.text)}</p>
         <div class="row spread"><button class="btn ghost small" id="say">🔊 Read to me</button><button class="btn ghost small" id="replay">🔁 Replay</button><button class="btn" id="nx">Got it ▶</button></div>
-      </div>`, `🎬 Film room · ${t.emoji} ${t.name}${s.pass === 2 ? ' · Level Up' : ''} · ${s.i + 1} of ${t.slides.length}`);
+      </div>`, label);
     const replay = () => { const p = $('#pic'); p.innerHTML = sl.svg; };
     $('#pic').onclick = replay; $('#replay').onclick = replay;
-    $('#say').onclick = () => speak(`${sl.h}. ${sl.text}`);
-    autoSpeak(`${sl.h}. ${sl.text}`);
+    $('#say').onclick = () => speak(`${sl.h}. ${plain(sl.text)}`);
+    autoSpeak(`${sl.h}. ${plain(sl.text)}`);
     $('#nx').onclick = next;
     keyHandler = (e) => { if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowRight') { e.preventDefault(); next(); } };
   }
+
+  const nextKeys = () => { keyHandler = (e) => { if (e.key === 'Enter' || e.key === 'ArrowRight') { e.preventDefault(); next(); } }; };
+
+  // Guess first, then the picture explains. Any guess is fine: guessing is what hooks attention.
+  function predictSlide(sl, label) {
+    frame(`<div class="card">
+        <h2>🤔 ${sl.h}</h2>
+        <p class="slide-text">${fmt(sl.ask)}</p>
+        <p class="muted" style="margin:0 0 8px">Make your call:</p>
+        <div class="guesses">${sl.options.map((o) => `<button class="btn ghost guess" data-o="${esc(o)}">${esc(o)}</button>`).join('')}</div>
+        <div id="rv"></div>
+        <div class="row" style="margin-top:10px"><button class="btn ghost small" id="say">🔊 Read to me</button></div>
+      </div>`, label);
+    $('#say').onclick = () => speak(`${sl.h}. ${plain(sl.ask)}. ${sl.options.join(', ')}`);
+    autoSpeak(plain(sl.ask));
+    const pickIt = (b) => {
+      const ok = b.dataset.o === sl.answer;
+      app.querySelectorAll('.guess').forEach((g) => { g.disabled = true; if (g.dataset.o === sl.answer) g.classList.add('right-g'); });
+      if (!ok) b.classList.add('wrong-g');
+      if (ok) { sfx.good(); swish(); P.xp += 2; floater('+2', b); } else sfx.bad();
+      $('#rv').innerHTML = `<div class="feedback ${ok ? 'good' : 'bad'}">${ok ? 'Called it! 🎯' : 'Good guess! Watch the replay:'}</div>
+        ${sl.svg ? `<div id="pic">${sl.svg}</div>` : ''}<p class="slide-text">${fmt(sl.text)}</p><button class="btn big" id="nx">Got it ▶</button>`;
+      autoSpeak(plain(sl.text));
+      $('#nx').onclick = next; nextKeys();
+      $('#rv').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    app.querySelectorAll('.guess').forEach((b) => (b.onclick = () => pickIt(b)));
+    keyHandler = (e) => { const i = '1234'.indexOf(e.key); const g = app.querySelectorAll('.guess')[i]; if (g && !g.disabled) pickIt(g); };
+  }
+
+  // A worked example that builds one tap at a time; the newest step is highlighted.
+  function stepsSlide(sl, label) {
+    let shown = 0;
+    frame(`<div class="card">
+        <h2>📋 ${sl.h}</h2>
+        <div class="problem">${fmt(sl.problem)}</div>
+        <div id="stp"></div>
+        <div class="row spread" style="margin-top:10px"><button class="btn ghost small" id="say">🔊 Read to me</button><button class="btn" id="nx">Show step 1 ▶</button></div>
+      </div>`, label);
+    const btn = $('#nx');
+    const reveal = () => {
+      if (shown === sl.steps.length) return next();
+      const st = sl.steps[shown++];
+      app.querySelectorAll('.step').forEach((d) => d.classList.remove('now'));
+      $('#stp').insertAdjacentHTML('beforeend', `<div class="step now"><b>Step ${shown}</b>${st.svg || ''}<p>${fmt(st.say)}</p></div>`);
+      autoSpeak(plain(st.say)); sfx.tick();
+      btn.textContent = shown === sl.steps.length ? 'Got it ▶' : `Show step ${shown + 1} ▶`;
+      app.querySelector('.step.now').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+    btn.onclick = reveal;
+    $('#say').onclick = () => speak(plain(sl.problem) + '. ' + sl.steps.slice(0, shown).map((x) => plain(x.say)).join(' '));
+    autoSpeak(plain(sl.problem));
+    keyHandler = (e) => { if (e.key === 'Enter' || e.key === 'ArrowRight') { e.preventDefault(); reveal(); } };
+  }
+
+  // Tap items into order; a wrong tap shakes and resets so he can try again.
+  function orderSlide(sl, label) {
+    let picked = [];
+    const draw = () => {
+      $('#slots').innerHTML = sl.answer.map((_, i) => `<div class="slot">${i + 1}. ${picked[i] ? esc(picked[i]) : ''}</div>`).join('');
+      app.querySelectorAll('.chip').forEach((c) => (c.disabled = picked.includes(c.dataset.v)));
+    };
+    frame(`<div class="card" id="oc">
+        <h2>👆 ${sl.h}</h2>
+        <p class="slide-text">${fmt(sl.text)}</p>
+        <div class="guesses">${shuffleArr(sl.items).map((v) => `<button class="btn ghost chip" data-v="${esc(v)}">${esc(v)}</button>`).join('')}</div>
+        <div id="slots" class="slots"></div>
+        <div id="rv"></div>
+      </div>`, label);
+    autoSpeak(plain(sl.text));
+    draw();
+    app.querySelectorAll('.chip').forEach((c) => (c.onclick = () => {
+      picked.push(c.dataset.v); sfx.tick(); draw();
+      if (picked[picked.length - 1] !== sl.answer[picked.length - 1]) {
+        sfx.bad(); $('#oc').classList.remove('shake'); void $('#oc').offsetWidth; $('#oc').classList.add('shake');
+        $('#rv').innerHTML = '<div class="feedback bad">Not that one. Re-read the clues and try again!</div>';
+        picked = []; setTimeout(draw, 500); return;
+      }
+      if (picked.length === sl.answer.length) {
+        sfx.good(); swish(); P.xp += 3; floater('+3', $('#oc'));
+        $('#rv').innerHTML = `<div class="feedback good">Nailed it! ${esc(sl.explain)}</div><p></p><button class="btn big" id="nx">Next ▶</button>`;
+        $('#nx').onclick = next; nextKeys();
+      }
+    }));
+  }
+  const shuffleArr = (a) => window.U.shuffle(a);
 
   function trick(s) {
     sfx.level();

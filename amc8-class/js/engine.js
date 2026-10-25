@@ -4,7 +4,7 @@
   const byId = () => Object.fromEntries(root.TOPICS.map((t) => [t.id, t]));
 
   // Topics alternate between number, algebra/counting and geometry so no two days feel the same.
-  const ORDER = ['mental', 'angles', 'fractions', 'counting', 'percents', 'area', 'ratios', 'sequences',
+  const ORDER = ['mental', 'angles', 'logic', 'fractions', 'counting', 'percents', 'area', 'ratios', 'sequences',
     'pythag', 'divisibility', 'probability', 'rates', 'circles', 'gcflcm', 'equations', 'stats',
     'divisors', 'coords', 'exponents', 'combos', 'units', 'solids', 'remainders'];
 

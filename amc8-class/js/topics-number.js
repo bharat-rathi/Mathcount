@@ -10,12 +10,18 @@
   T.push({
     id: 'mental', name: 'Mental Math Tricks', emoji: '⚡', color: '#ff8a00',
     slides: [
-      { h: 'Times 25 = times 100, then ÷ 4',
+      { type: 'predict', h: 'Race the calculator',
+        ask: 'What is {g:36 × 25}? You have 5 seconds. Go!',
+        options: ['800', '900', '950', '1000'], answer: '900',
         svg: V.svg(V.t(20, 50, '36 × 25', 'big', 0) + V.t(20, 100, '= 3600 ÷ 4', 'big b-t', 1) + V.t(20, 150, '= 900', 'big c-t', 2) + V.t(200, 100, '💯 ÷ 4', 'big', 1.5)),
-        text: '25 is a quarter of 100. So multiply by 100 (add two zeros), then take a quarter.' },
-      { h: 'Difference of squares',
-        svg: V.svg(V.rect(20, 20, 140, 140, 'a', 0) + V.rect(120, 120, 40, 40, 'empty', 1) + V.t(60, 95, 'a²', 'big', 0.5) + V.t(128, 147, 'b²', 'small', 1.2) + V.t(185, 70, 'a² − b²', 'big', 2) + V.t(185, 120, '=(a−b)(a+b)', 'big c-t', 3)),
-        text: 'Cut a small square from a big one: what is left rearranges into a rectangle (a−b) by (a+b). 53² − 47² = 6 × 100 = 600.' },
+        text: '25 is a quarter of 100. So {g:× 100} (add two zeros), then {g:÷ 4}: 3600 ÷ 4 = {a:900}. No long multiplication!' },
+      { type: 'steps', h: 'Difference of squares',
+        problem: 'Find {f:53² − 47²} in your head.',
+        steps: [
+          { svg: V.svg(V.rect(20, 20, 140, 140, 'a', 0) + V.rect(120, 120, 40, 40, 'empty', 0.6) + V.t(60, 95, 'a²', 'big', 0.3) + V.t(128, 147, 'b²', 'small', 0.8)), say: 'Picture a big square (53²) with a small square (47²) cut from the corner.' },
+          { svg: V.svg(V.rect(20, 60, 280, 60, 'a', 0) + V.t(120, 98, '(a − b) × (a + b)', 'small', 0.5)), say: 'The L-shape that is left rearranges into a rectangle: {g:(a − b)} by {g:(a + b)}.' },
+          { svg: V.svg(V.t(20, 80, '(53 − 47) × (53 + 47)', 'big', 0) + V.t(20, 140, '= 6 × 100 = 600', 'big c-t', 1)), say: '53 − 47 = 6 and 53 + 47 = 100, so the answer is {a:600}.' },
+        ] },
       { h: 'Order of operations: PEMDAS',
         svg: V.svg(['( )', 'xⁿ', '× ÷', '+ −'].map((s, i) => V.rect(20 + i * 75, 60, 65, 60, ['a', 'b', 'c', 'd'][i], i * 0.6) + V.t(32 + i * 75, 100, s, 'big', i * 0.6)).join('') + V.t(20, 160, '× and ÷ go left to right, as do + and −', 'small', 3)),
         text: 'Brackets first, then powers, then × and ÷ left to right, then + and − left to right.' },
