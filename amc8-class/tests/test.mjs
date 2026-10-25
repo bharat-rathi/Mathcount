@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'js');
 const ctx = vm.createContext({ console, Math, Date });
-for (const f of ['util.js', 'viz.js', 'topics-number.js', 'topics-algebra.js', 'topics-geometry.js', 'engine.js']) {
+for (const f of ['util.js', 'viz.js', 'hoops.js', 'topics-number.js', 'topics-algebra.js', 'topics-geometry.js', 'engine.js']) {
   vm.runInContext(fs.readFileSync(path.join(dir, f), 'utf8'), ctx, { filename: f });
 }
 const { TOPICS, Engine, U } = ctx;
@@ -56,7 +56,7 @@ for (let i = 0; i < plan.length; i++) {
   const c = Engine.buildClass(state, i);
   if (plan[i].type === 'lesson') {
     const types = c.segments.map((s) => s.type).join(',');
-    const want = (i === 0 ? '' : 'warmup,') + 'lesson,trick,quiz,break,quiz,boss';
+    const want = 'shootaround,' + (i === 0 ? '' : 'warmup,') + 'lesson,trick,quiz,break,quiz,boss';
     if (types !== want) fail(`class ${i} segments ${types}`);
     if (!c.segments.find((s) => s.type === 'trick').tip) fail(`class ${i} has no trick`);
   } else if (c.segments[0].questions.length !== 15) fail(`mock ${i} size`);
@@ -73,6 +73,14 @@ Engine.finishClass(s, Engine.buildClass(s), res, '2026-11-02');
 if (s.streak !== 2) fail(`same-day class changed streak to ${s.streak}`);
 Engine.finishClass(s, Engine.buildClass(s), res, '2026-11-05');
 if (s.streak !== 1) fail(`gap should reset streak, got ${s.streak}`);
+// A one-day gap is covered by a timeout.
+const t = Engine.newState();
+Engine.finishClass(t, Engine.buildClass(t, 0), res, '2026-11-01');
+Engine.finishClass(t, Engine.buildClass(t), res, '2026-11-03');
+if (t.streak !== 2 || t.timeouts !== 1) fail(`timeout should keep streak: streak ${t.streak}, timeouts ${t.timeouts}`);
+if (t.wins !== 2) fail(`wins should be 2, got ${t.wins}`);
+// Every Shootaround fact has a clean numeric answer.
+for (let k = 0; k < 3000; k++) { const f = ctx.Hoops.nextFact(t); if (!Number.isFinite(f.a) || !f.q || !f.key) fail(`bad fact ${JSON.stringify(f)}`); }
 if (s.classIdx !== 4) fail(`classIdx should be 4, got ${s.classIdx}`);
 if (!s.badges.includes('perfect') || !s.badges.includes('boss')) fail('badges not awarded');
 const L = Engine.levelOf(260);

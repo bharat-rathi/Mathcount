@@ -26,7 +26,10 @@
   const DEFAULT_CONTEST = '2027-01-21';
   function newState() {
     return { name: '', contestDate: DEFAULT_CONTEST, classIdx: 0, xp: 0, streak: 0, bestStreak: 0,
-      lastDay: null, mastery: {}, log: [], badges: [], sound: true, voice: false };
+      lastDay: null, mastery: {}, log: [], badges: [], sound: true, voice: false,
+      // Basketball layer: season record, streak timeouts, look, trick cards and Shootaround facts.
+      wins: 0, losses: 0, timeouts: 2, jersey: 'gold', number: 23, court: 'hardwood',
+      unlocks: ['gold', 'hardwood'], cards: [], shootPB: 0, facts: {} };
   }
 
   const dayKey = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -83,7 +86,7 @@
     // Use every generator before repeating one, so a quiz covers the whole topic.
     const gens = U.shuffle(t.gens.map((_, i) => i));
     const quiz = lv.map((level, k) => makeQuestion(t.id, level, gens[k % gens.length]));
-    const segments = [];
+    const segments = [{ type: 'shootaround' }];
     const review = reviewTopics(state, taughtTopics(state, idx).filter((id) => id !== t.id), 3);
     if (review.length) segments.push({ type: 'warmup', questions: review.map((id) => makeQuestion(id, c.pass)) });
     segments.push({ type: 'lesson', topic: t.id, pass: c.pass });
@@ -119,11 +122,17 @@
 
   // Called once a class is finished. Updates streak, XP, badges and moves on in the plan.
   function finishClass(state, cls, result, today = dayKey()) {
+    let usedTimeout = false;
     if (state.lastDay !== today) {
       const gap = state.lastDay ? daysBetween(state.lastDay, today) : 1;
-      state.streak = gap === 1 ? state.streak + 1 : 1;
+      // A missed day can be covered by a timeout instead of losing the streak.
+      if (gap === 2 && state.timeouts > 0) { state.timeouts--; usedTimeout = true; }
+      state.streak = gap === 1 || usedTimeout ? state.streak + 1 : 1;
       state.lastDay = today;
+      if (state.streak % 7 === 0) state.timeouts = Math.min(3, state.timeouts + 1);
     }
+    const win = result.total > 0 && result.right / result.total >= 0.7;
+    if (cls.kind !== 'practice') win ? state.wins++ : state.losses++;
     state.bestStreak = Math.max(state.bestStreak, state.streak);
     state.xp += result.xp;
     state.log.push({ day: today, idx: cls.idx, title: cls.title, kind: cls.kind, right: result.right, total: result.total, xp: result.xp, score: result.score });
@@ -138,6 +147,8 @@
     if (cls.kind === 'mock') give('mock');
     if (cls.kind === 'mock' && result.right >= 12) give('honor');
     if (result.bossWin) give('boss');
+    earned.usedTimeout = usedTimeout;
+    earned.win = win;
     return earned;
   }
 
