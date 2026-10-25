@@ -13,13 +13,23 @@
   try { S = Object.assign(E.newState(), JSON.parse(localStorage.getItem(KEY) || '{}')); } catch { S = E.newState(); }
   // Cloud copy: a private per-account record, so progress follows him to any device.
   // The browser copy stays as a fallback and the newer of the two wins on load.
-  let cloudRef = null, cloudQueue = Promise.resolve(), onHome = false;
+  let cloudRef = null, reportRef = null, cloudQueue = Promise.resolve(), onHome = false;
+  // A small summary the parents' daily email is built from (readable by the page's owner, not by him).
+  const report = () => ({
+    name: S.name, updatedAt: new Date().toISOString(), contestDate: S.contestDate,
+    classIdx: S.classIdx, totalClasses: E.buildPlan().length, streak: S.streak, bestStreak: S.bestStreak,
+    xp: S.xp, level: E.levelOf(S.xp).lvl, badges: S.badges,
+    recent: S.log.slice(-14),
+    mastery: Object.fromEntries(Object.entries(S.mastery).filter(([, m]) => m.r.length).map(([id, m]) =>
+      [TOP[id].name, { pct: Math.round((100 * m.r.reduce((a, b) => a + b, 0)) / m.r.length), n: m.r.length }])),
+  });
   const save = () => {
     S.savedAt = Date.now();
     try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { /* private mode */ }
     if (cloudRef) {
       const json = JSON.stringify(S);
-      cloudQueue = cloudQueue.then(() => cloudRef.set({ json })).catch(() => { /* stays saved locally */ });
+      const rep = report();
+      cloudQueue = cloudQueue.then(() => cloudRef.set({ json })).then(() => reportRef && reportRef.set(rep)).catch(() => { /* stays saved locally */ });
     }
   };
   (async () => {
@@ -32,6 +42,7 @@
       const snap = await ref.get();
       const remote = snap.exists && JSON.parse(snap.data().json || 'null');
       cloudRef = ref;
+      reportRef = db.doc(`reports/${id}`);
       if (remote && (remote.savedAt || 0) > (S.savedAt || 0)) {
         S = Object.assign(E.newState(), remote);
         try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { /* private mode */ }
