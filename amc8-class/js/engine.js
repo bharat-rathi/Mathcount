@@ -23,7 +23,7 @@
     return plan;
   }
 
-  const DEFAULT_CONTEST = '2027-01-22';
+  const DEFAULT_CONTEST = '2027-01-21';
   function newState() {
     return { name: '', contestDate: DEFAULT_CONTEST, classIdx: 0, xp: 0, streak: 0, bestStreak: 0,
       lastDay: null, mastery: {}, log: [], badges: [], sound: true, voice: false };
