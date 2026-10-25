@@ -2,6 +2,6 @@
 // public: the database's row-level security rules (supabase/schema.sql) protect each family.
 // Leave them empty to run without accounts (progress stays in the browser).
 window.MH_CONFIG = {
-  supabaseUrl: '',
-  supabaseAnonKey: '',
+  supabaseUrl: 'https://yvwsynhlzlzaicoyardi.supabase.co',
+  supabaseAnonKey: 'sb_publishable_kz2JqfyS0I0nEau5n3IgWw_G0B5IFNC',
 };
