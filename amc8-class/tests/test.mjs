@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'js');
 const ctx = vm.createContext({ console, Math, Date });
-for (const f of ['util.js', 'viz.js', 'hoops.js', 'topics-number.js', 'topics-algebra.js', 'topics-geometry.js', 'topics-logic.js', 'topics-counting.js', 'engine.js']) {
+for (const f of ['util.js', 'viz.js', 'hoops.js', 'topics-number.js', 'topics-algebra.js', 'topics-geometry.js', 'topics-logic.js', 'topics-counting.js', 'hard.js', 'engine.js']) {
   vm.runInContext(fs.readFileSync(path.join(dir, f), 'utf8'), ctx, { filename: f });
 }
 const { TOPICS, Engine, U } = ctx;
@@ -91,6 +91,16 @@ if (s.classIdx !== 4) fail(`classIdx should be 4, got ${s.classIdx}`);
 if (!s.badges.includes('perfect') || !s.badges.includes('boss')) fail('badges not awarded');
 const L = Engine.levelOf(260);
 if (L.lvl !== 3 || L.into !== 10) fail(`levelOf(260) = ${JSON.stringify(L)}`);
+
+// Clutch problems: well-formed, answer among 5 distinct choices, known topic, hints and key.
+for (const h of ctx.HARD.problems) {
+  if (h.choices.length !== 5 || new Set(h.choices).size !== 5 || !h.choices.includes(h.a)) fail(`hard ${h.id} choices`);
+  if (!ids.includes(h.topic)) fail(`hard ${h.id} unknown topic ${h.topic}`);
+  if (h.hints.length !== 2 || !h.steps.length || !h.key) fail(`hard ${h.id} missing hints/steps/key`);
+}
+if (new Set(ctx.HARD.problems.map((h) => h.id)).size !== ctx.HARD.problems.length) fail('duplicate hard ids');
+const boss = Engine.buildClass(Engine.newState(), 0).segments.find((x) => x.type === 'boss').questions[0];
+if (!boss.hints || !boss.id) fail('clutch shot is not a hand-written problem');
 
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log(`OK — ${TOPICS.length} topics, ${TOPICS.reduce((n, t) => n + t.gens.length, 0)} question types, ${plan.length} classes`);

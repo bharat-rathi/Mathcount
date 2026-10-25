@@ -35,7 +35,7 @@ win–loss record (a game is a win at 70% or better), and ranks run from Rookie 
 | ✏️ Quiz round 1 | 5 AMC-style multiple-choice questions (A–E) |
 | 🧠 Brain break | A 40-second movement challenge (jumping jacks, squats, deep breaths) |
 | ✏️ Quiz round 2 | 5 harder questions |
-| 🐉 Boss battle | One hard problem, styled like AMC problems #15–25 |
+| 🐉 Clutch shot | One hand-written AMC #16–25 level problem with optional hints |
 
 Lessons use hands-on slides: **predict** (he guesses first, then the picture explains),
 **steps** (a worked example revealed one tap at a time, newest step highlighted) and
@@ -61,6 +61,21 @@ That's 54 classes in all. If he misses a day, nothing is skipped: the next class
 Questions are generated with fresh numbers each time, so there are no memorized answers.
 The wrong choices are the classic mistakes (adding tops and bottoms, the fencepost +1,
 averaging speeds, etc.).
+
+## Clutch problems
+
+`js/hard.js` holds 43 original hard problems (AMC #16–25 level). Their answers were
+checked by brute force. Each one has:
+- **two hints**, each costing 10 points
+- **a full solution**
+- **a "key idea"**, which he identifies after solving
+
+Clutch shots pick an unseen problem from today's topic first, then from the same area.
+The last 3 questions of every practice contest are also hard problems.
+
+After any answer that wasn't right first try, he taps what happened: careless slip,
+didn't know how, forgot the trick, or ran out of time. The parent page and the daily
+report show the breakdown.
 
 ## Parent page
 

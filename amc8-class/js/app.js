@@ -20,7 +20,7 @@
     name: S.name, updatedAt: new Date().toISOString(), contestDate: S.contestDate,
     classIdx: S.classIdx, totalClasses: E.buildPlan().length, streak: S.streak, bestStreak: S.bestStreak,
     xp: S.xp, level: E.levelOf(S.xp).lvl, badges: S.badges,
-    recent: S.log.slice(-14),
+    recent: S.log.slice(-14), mistakes: S.mistakes || {},
     mastery: Object.fromEntries(Object.entries(S.mastery).filter(([, m]) => m.r.length).map(([id, m]) =>
       [TOP[id].name, { pct: Math.round((100 * m.r.reduce((a, b) => a + b, 0)) / m.r.length), n: m.r.length }])),
   });
@@ -369,11 +369,13 @@
 
   // Shared multiple-choice block. A first miss gets one more try; after that the solution appears.
   function askQ(q, { seg, onDone, label, before = '' }) {
-    let tries = 0, done = false;
+    let tries = 0, done = false, hintsUsed = 0;
+    const hintBar = q.hints ? `<div class="row" id="hb" style="margin-top:10px"><button class="btn ghost small" id="h1">💡 Small hint (−10)</button></div><div id="hs"></div>` : '';
     const choices = q.choices.map((c, i) => `<button class="choice" data-c="${esc(c)}"><span class="L">${LETTERS[i]}</span><span>${esc(c)}</span></button>`).join('');
     frame(`${before}<div class="card" id="qc">
         <div class="qtext">${esc(q.q)}</div>
         <div class="choices">${choices}</div>
+        ${hintBar}
         <div id="fb"></div>
         <div class="row spread" style="margin-top:12px"><button class="btn ghost small" id="say">🔊 Read</button><span class="combo" id="combo">${P.combo >= 3 ? `🔥 ${P.combo} straight: you're heating up!` : P.combo === 2 ? '🔥 2 in a row' : ''}</span></div>
       </div>`, label);
@@ -389,7 +391,9 @@
       if (correct) P.right++;
       P.combo = firstTry ? P.combo + 1 : 0;
       P.bestCombo = Math.max(P.bestCombo, P.combo);
-      const gain = E.xpFor(seg, correct, firstTry, P.combo);
+      const gain = Math.max(correct ? 5 : 0, E.xpFor(seg, correct, firstTry, P.combo) - 10 * hintsUsed);
+      if (q.id && !P.practice && !(S.hardSeen || []).includes(q.id)) (S.hardSeen = S.hardSeen || []).push(q.id);
+      const hb = $('#hb'); if (hb) hb.remove();
       P.xp += gain;
       if (gain) floater(`+${gain}`, $('#qc'));
       if (correct) swish();
@@ -397,7 +401,18 @@
       const steps = q.steps.map((s) => `<li>${esc(s)}</li>`).join('');
       $('#fb').innerHTML = `<div class="feedback ${correct ? 'good' : 'bad'}">${correct ? (firstTry ? praise[Math.floor(Math.random() * praise.length)] : 'Got it on the second try 👍') : `The answer is <b>${esc(q.answer)}</b>. Here's how:`}
         ${correct && firstTry ? `<details><summary>See the fast way</summary><ol class="sol">${steps}</ol></details>` : `<ol class="sol">${steps}</ol>`}</div>
+        ${firstTry ? '' : `<div class="why" id="why"><b>What happened?</b> (one tap)<div class="guesses">${Object.entries(E.MISTAKES).map(([k, [em, t]]) => `<button class="btn ghost small mk" data-k="${k}">${em} ${t}</button>`).join('')}</div></div>`}
+        ${q.key ? `<div class="why" id="kq"><b>🔑 What was the key idea?</b><div class="guesses">${window.HARD.keyOptions({ key: q.key }).map((k) => `<button class="btn ghost small kk" data-k="${esc(k)}">${esc(k)}</button>`).join('')}</div></div>` : ''}
         <p></p><button class="btn big" id="nx">Next ▶</button>`;
+      app.querySelectorAll('.mk').forEach((b) => (b.onclick = () => {
+        if (!P.practice) E.recordMistake(S, q, b.dataset.k);
+        $('#why').innerHTML = `<b>Logged: ${E.MISTAKES[b.dataset.k][0]} ${E.MISTAKES[b.dataset.k][1]}.</b> ${{ careless: 'Slow down on the easy steps and double-check.', concept: 'It comes back in your warm-ups. You will get it.', trick: 'Check your Playbook for this one.', time: 'Skip and come back next time; every question is worth the same.' }[b.dataset.k]}`;
+      }));
+      app.querySelectorAll('.kk').forEach((b) => (b.onclick = () => {
+        const ok = b.dataset.k === q.key;
+        app.querySelectorAll('.kk').forEach((x) => { x.disabled = true; if (x.dataset.k === q.key) x.classList.add('right-g'); });
+        if (ok) { P.xp += 5; floater('+5', b); sfx.good(); } else { b.classList.add('wrong-g'); sfx.bad(); }
+      }));
       $('#combo').textContent = P.combo >= 3 ? `🔥 ${P.combo} straight: you're heating up!` : P.combo === 2 ? '🔥 2 in a row' : '';
       if (P.combo && P.combo % 5 === 0) confetti(40);
       $('#nx').onclick = () => onDone(correct, firstTry);
@@ -414,6 +429,15 @@
       else finish(false);
     };
     btns.forEach((b) => (b.onclick = () => pick(b)));
+    if (q.hints) {
+      const showHint = (i) => {
+        hintsUsed = i + 1; sfx.tick();
+        $('#hs').insertAdjacentHTML('beforeend', `<div class="hint">💡 ${esc(q.hints[i])}</div>`);
+        $('#hb').innerHTML = i === 0 && q.hints[1] ? '<button class="btn ghost small" id="h2">💡💡 Big hint (−10)</button>' : '';
+        const h2 = $('#h2'); if (h2) h2.onclick = () => showHint(1);
+      };
+      $('#h1').onclick = () => showHint(0);
+    }
     keyHandler = (e) => {
       const k = e.key.toUpperCase(), i = '12345'.includes(k) ? +k - 1 : LETTERS.indexOf(k);
       if (i >= 0 && i < 5 && btns[i]) pick(btns[i]);
@@ -454,7 +478,7 @@
     const m = '🏀';
     const before = `<div class="card scoreboard"><div class="sb-row"><span>${esc(S.name.toUpperCase())}</span><b>98</b><i>–</i><b>98</b><span>${esc(H.opponent(P.cls.idx).toUpperCase())}</span></div>
       <div class="boss">${m}</div><div class="boss-msg" id="bm"></div><div class="hp"><i id="hp" style="width:100%"></i></div>
-      <p style="text-align:center"><b>Clutch time!</b> Tie game, ball in your hands. Hit this tough shot to win it. <span class="pill" id="bt">2:00</span></p></div>`;
+      <p style="text-align:center"><b>Clutch time!</b> Tie game, ball in your hands. A real AMC-level problem. Hints cost points, but they are better than a miss. <span class="pill" id="bt">2:00</span></p></div>`;
     let left = 120;
     askQ(s.q, {
       seg: 'boss', label: 'Clutch shot', before,
@@ -660,6 +684,8 @@
         <p>${esc(S.name)} has finished <b>${S.log.length}</b> classes (${S.classIdx} of ${E.buildPlan().length} in the course). Current streak <b>${S.streak}</b>, best <b>${S.bestStreak}</b>.</p>
         ${mocks.length ? `<p>Practice contests: ${mocks.map((m) => `<b>${m.right}/${m.total}</b>`).join(', ')}</p>` : ''}
         ${weak.length ? `<p>⚠️ Needs work: <b>${weak.join(', ')}</b>. These come back automatically in warm-ups.</p>` : ''}
+        ${(() => { const m = S.mistakes || {}, tot = Object.values(m).reduce((a, b) => a + b, 0); return tot ? `<p><b>Why answers went wrong</b> (his own tags, ${tot} total): ${Object.entries(E.MISTAKES).map(([k, [em, t]]) => `${em} ${t}: <b>${m[k] || 0}</b>`).join(' · ')}</p>` : ''; })()}
+        <p>Clutch problems seen: <b>${(S.hardSeen || []).length}</b> of ${window.HARD.problems.length}.</p>
         <p class="muted">Accuracy counts first-try answers over the last 20 questions per topic.</p>
         <table><thead><tr><th>Topic</th><th>Mastery</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
       <div class="card"><h3>Recent classes</h3>${log ? `<table><thead><tr><th>Day</th><th>Class</th><th>Score</th><th>XP</th></tr></thead><tbody>${log}</tbody></table>` : '<p class="muted">None yet.</p>'}</div>

@@ -189,3 +189,6 @@ label { display: block; font-weight: 700; margin: 10px 0 4px; }
 .step p { margin: 4px 0 0; font-size: 18px; }
 .slots { display: grid; gap: 6px; margin: 12px 0; }
 .slot { border: 2px dashed var(--line); border-radius: 12px; padding: 10px 14px; font-weight: 700; min-height: 46px; }
+.hint { background: color-mix(in srgb, #fab005 18%, var(--card)); border-radius: 12px; padding: 10px 12px; margin-top: 8px; font-weight: 600; animation: rise .3s both; }
+.why { margin-top: 12px; padding: 10px 12px; border: 2px dashed var(--line); border-radius: 14px; }
+.why .guesses { margin-top: 8px; } .why .btn { flex: 1 1 45%; }

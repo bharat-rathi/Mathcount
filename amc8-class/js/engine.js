@@ -29,7 +29,9 @@
       lastDay: null, mastery: {}, log: [], badges: [], sound: true, voice: false,
       // Basketball layer: season record, streak timeouts, look, trick cards and Shootaround facts.
       wins: 0, losses: 0, timeouts: 2, jersey: 'gold', number: 23, court: 'hardwood',
-      unlocks: ['gold', 'hardwood'], cards: [], shootPB: 0, facts: {} };
+      unlocks: ['gold', 'hardwood'], cards: [], shootPB: 0, facts: {},
+      // Clutch problems already seen, and why answers went wrong (careless/concept/trick/time).
+      hardSeen: [], mistakes: { careless: 0, concept: 0, trick: 0, time: 0 }, mistakeLog: [] };
   }
 
   const dayKey = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -46,6 +48,12 @@
       return { topic: topicId, level, gen: i, q: g.q, answer: a, choices: U.makeChoices(a, g.wrong), steps: g.steps };
     }
     throw new Error(`generator ${topicId}#${i} keeps failing`);
+  }
+
+  // A hand-written clutch problem (js/hard.js) in the same shape as a generated question.
+  function makeHard(topic, seen) {
+    const p = root.HARD.pickHard(topic, seen || []);
+    return { topic: p.topic, level: 4, id: p.id, q: p.q, answer: p.a, choices: p.choices, steps: p.steps, hints: p.hints, key: p.key };
   }
 
   // Weakest (or longest-unseen) topics among those already taught come back as warm-ups.
@@ -77,7 +85,8 @@
       const qs = [];
       for (let k = 0; k < 15; k++) {
         if (!deck.length) deck = U.shuffle(pool);
-        qs.push(makeQuestion(deck.pop(), k < 5 ? 1 : k < 11 ? 2 : 3));
+        // The last three are hand-written hard problems, like #23–25 on the real test.
+        qs.push(k >= 12 && root.HARD ? makeHard(deck.pop(), (state.hardSeen || []).concat(qs.map((x) => x.id))) : makeQuestion(deck.pop(), k < 5 ? 1 : k < 11 ? 2 : 3));
       }
       return { idx, kind: 'mock', title: c.final ? 'Final Dress Rehearsal' : 'Practice Contest', minutes: 25, segments: [{ type: 'mock', questions: qs }] };
     }
@@ -95,7 +104,7 @@
     segments.push({ type: 'quiz', questions: quiz.slice(0, 5), part: 1 });
     segments.push({ type: 'break' });
     segments.push({ type: 'quiz', questions: quiz.slice(5), part: 2 });
-    segments.push({ type: 'boss', questions: [makeQuestion(t.id, 3)] });
+    segments.push({ type: 'boss', questions: [root.HARD ? makeHard(t.id, state.hardSeen) : makeQuestion(t.id, 3)] });
     return { idx, kind: 'lesson', title: `${t.emoji} ${t.name}`, pass: c.pass, topic: t.id, minutes: 20, segments };
   }
 
@@ -158,5 +167,13 @@
     honor: ['🥇', '12+ on a practice contest'], boss: ['🐉', 'Beat a boss'],
   };
 
-  root.Engine = { ORDER, buildPlan, newState, makeQuestion, buildClass, record, xpFor, levelOf, finishClass, dayKey, daysBetween, taughtTopics, BADGES };
+  const MISTAKES = { careless: ['😬', 'Careless slip'], concept: ['🤷', "Didn't know how"], trick: ['🃏', 'Forgot the trick'], time: ['⏱️', 'Ran out of time'] };
+  function recordMistake(state, q, kind) {
+    state.mistakes = state.mistakes || { careless: 0, concept: 0, trick: 0, time: 0 };
+    state.mistakes[kind]++;
+    (state.mistakeLog = state.mistakeLog || []).push({ day: dayKey(), topic: q.topic, kind });
+    if (state.mistakeLog.length > 200) state.mistakeLog.shift();
+  }
+
+  root.Engine = { MISTAKES, recordMistake, makeHard, ORDER, buildPlan, newState, makeQuestion, buildClass, record, xpFor, levelOf, finishClass, dayKey, daysBetween, taughtTopics, BADGES };
 })(typeof window !== 'undefined' ? window : globalThis);
