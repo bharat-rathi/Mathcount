@@ -5,7 +5,13 @@
   const cfg = root.MH_CONFIG || {};
   const lib = root.supabase;
   const enabled = !!(cfg.supabaseUrl && cfg.supabaseAnonKey && lib && lib.createClient);
-  const db = enabled ? lib.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey) : null;
+  // An old sign-in link left in the address (a bookmark or app shortcut made right after signing
+  // in, or a link that was already used) makes supabase-js drop the saved sign-in. Strip it first.
+  if (enabled && /(access_token|error_code|error)=/.test(location.hash)) {
+    const p = new URLSearchParams(location.hash.slice(1));
+    if (p.has('error') || p.has('error_code') || +p.get('expires_at') * 1000 < Date.now()) history.replaceState(null, '', location.pathname + location.search);
+  }
+  const db = enabled ? lib.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }) : null;
   const must = ({ data, error }) => { if (error) throw error; return data; };
   let queue = Promise.resolve(), userId = null;
 
@@ -16,6 +22,7 @@
       if (!enabled) return null;
       const s = must(await db.auth.getSession()).session;
       userId = s ? s.user.id : null;
+      if (s && location.hash) history.replaceState(null, '', location.pathname + location.search);
       return s;
     },
     signIn: async (email) => must(await db.auth.signInWithOtp({ email, options: { emailRedirectTo: location.href.split(/[?#]/)[0] } })),
