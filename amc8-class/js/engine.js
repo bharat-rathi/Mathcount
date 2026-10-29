@@ -206,5 +206,20 @@
     if (state.mistakeLog.length > 200) state.mistakeLog.shift();
   }
 
-  root.Engine = { migratePlan, PLAN_VERSION, MISTAKES, recordMistake, makeHard, ORDER, buildPlan, newState, makeQuestion, buildClass, record, xpFor, levelOf, finishClass, dayKey, daysBetween, taughtTopics, BADGES };
+  // Topics to practice next: low recent first-try accuracy, or repeated "didn't know how" /
+  // "forgot the trick" tags. Careless slips don't count against a topic.
+  function focusTopics(state, n = 3) {
+    const out = [];
+    const recentMistakes = (state.mistakeLog || []).slice(-60);
+    const ids = new Set([...Object.keys(state.mastery), ...recentMistakes.map((x) => x.topic)]);
+    for (const id of ids) {
+      const recent = ((state.mastery[id] || {}).r || []).slice(-10);
+      const acc = recent.length ? recent.reduce((a, b) => a + b, 0) / recent.length : 0;
+      const misses = recentMistakes.filter((x) => x.topic === id && x.kind !== 'careless').length;
+      if ((recent.length >= 3 && acc < 0.8) || misses >= 2) out.push({ id, pct: Math.round(100 * acc), n: recent.length, misses, score: acc - 0.05 * misses });
+    }
+    return out.sort((a, b) => a.score - b.score).slice(0, n);
+  }
+
+  root.Engine = { focusTopics, migratePlan, PLAN_VERSION, MISTAKES, recordMistake, makeHard, ORDER, buildPlan, newState, makeQuestion, buildClass, record, xpFor, levelOf, finishClass, dayKey, daysBetween, taughtTopics, BADGES };
 })(typeof window !== 'undefined' ? window : globalThis);

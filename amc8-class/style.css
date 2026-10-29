@@ -196,3 +196,13 @@ label { display: block; font-weight: 700; margin: 10px 0 4px; }
 .chart .plot { fill: none; stroke: var(--accent); stroke-width: 3; }
 .viz.chart { cursor: default; }
 .qviz .viz { margin: 0 0 12px; }
+
+/* Practice Ground and Test Hacks */
+.prow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 0; border-top: 1px solid var(--line); }
+.prow .pname { flex: 1 1 160px; font-weight: 700; }
+.prow .pname small { display: block; font-weight: 400; font-size: 14px; }
+.prow-b { display: flex; gap: 8px; }
+.pill.p-good { border-color: var(--good); color: var(--good); }
+.pill.p-low { border-color: var(--bad); color: var(--bad); }
+details.chap summary { cursor: pointer; list-style: none; }
+details.chap summary::before { content: '▸ '; } details.chap[open] summary::before { content: '▾ '; }
