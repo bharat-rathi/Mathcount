@@ -143,12 +143,14 @@
         <p class="muted">${next.type === 'paper' ? 'A real past AMC 8: 25 problems, 40 minutes, pencil and paper. Then enter your score.' : next.type === 'mock' ? '15 contest-style questions, a timer, answers at the end, just like the real thing.' : 'Shootaround → pregame → film room → new play → 1st half → halftime → 2nd half → clutch shot. About 20 minutes.'}</p>
         <button class="btn big go" id="start">🏀 ${doneToday ? 'Play a bonus game' : 'Tip off!'}</button>
       </div>
+      ${(() => { const f = E.focusTopics(S, 1)[0]; return f && TOP[f.id] ? `<div class="card row spread"><span>🧢 <b>Coach's pick:</b> ${TOP[f.id].emoji} ${esc(TOP[f.id].name)} <span class="muted">(${esc(focusWhy(f))})</span></span><button class="btn small" id="coach" data-t="${f.id}">🎯 Practice it</button></div>` : ''; })()}
       <div class="card">
         <h3>Season schedule</h3>
         <div class="map" id="map">${nodes}</div>
       </div>
       <div class="grid2">
-        <button class="btn ghost" id="practice">🎯 Extra practice</button>
+        <button class="btn ghost" id="practice">🎯 Practice Ground</button>
+        <button class="btn ghost" id="hacks">🧰 Test Hacks</button>
         <button class="btn ghost" id="cards">🃏 Playbook (${S.cards.length})</button>
         <button class="btn ghost" id="locker">👕 Locker room</button>
         <button class="btn ghost" id="badges">🏅 Trophies (${S.badges.length})</button>
@@ -157,7 +159,9 @@
       </div>`);
     onHome = true;
     $('#start').onclick = () => startClass(S.classIdx);
-    $('#practice').onclick = practicePicker;
+    $('#practice').onclick = practiceGround;
+    $('#hacks').onclick = () => hacksPage();
+    if ($('#coach')) $('#coach').onclick = () => startPractice($('#coach').dataset.t);
     $('#badges').onclick = badgesPage;
     $('#cards').onclick = playbookPage;
     $('#locker').onclick = lockerRoom;
@@ -200,7 +204,7 @@
       else if (seg.type === 'mock') steps.push({ kind: 'mock', qs: seg.questions });
       else if (seg.type === 'paper') steps.push({ kind: 'paper', year: seg.year, url: seg.url });
     }
-    P = { cls, steps, i: 0, xp: 0, right: 0, total: 0, combo: 0, bestCombo: 0, bossWin: false, t0: Date.now(), practice: !!custom };
+    P = { cls, steps, i: 0, xp: 0, right: 0, total: 0, combo: 0, bestCombo: 0, bossWin: false, t0: Date.now(), practice: !!custom, missed: [] };
     clearInterval(clock);
     clock = setInterval(() => { const c = $('#clock'); if (c) c.textContent = `⏱ ${Math.floor((Date.now() - P.t0) / 60000)}m`; }, 15000);
     show();
@@ -379,7 +383,8 @@
       done = true;
       btns.forEach((b) => { b.disabled = true; if (b.dataset.c === q.answer) b.classList.add('right'); });
       const firstTry = tries === 1 && correct;
-      if (!P.practice) E.record(S, q, correct, firstTry);
+      E.record(S, q, correct, firstTry);
+      if (!firstTry && q.topic) P.missed.push(q.topic);
       P.total++;
       if (correct) P.right++;
       P.combo = firstTry ? P.combo + 1 : 0;
@@ -398,7 +403,7 @@
         ${q.key ? `<div class="why" id="kq"><b>🔑 What was the key idea?</b><div class="guesses">${window.HARD.keyOptions({ key: q.key }).map((k) => `<button class="btn ghost small kk" data-k="${esc(k)}">${esc(k)}</button>`).join('')}</div></div>` : ''}
         <p></p><button class="btn big" id="nx">Next ▶</button>`;
       app.querySelectorAll('.mk').forEach((b) => (b.onclick = () => {
-        if (!P.practice) E.recordMistake(S, q, b.dataset.k);
+        E.recordMistake(S, q, b.dataset.k);
         $('#why').innerHTML = `<b>Logged: ${E.MISTAKES[b.dataset.k][0]} ${E.MISTAKES[b.dataset.k][1]}.</b> ${{ careless: 'Slow down on the easy steps and double-check.', concept: 'It comes back in your warm-ups. You will get it.', trick: 'Check your Playbook for this one.', time: 'Skip and come back next time; every question is worth the same.' }[b.dataset.k]}`;
       }));
       app.querySelectorAll('.kk').forEach((b) => (b.onclick = () => {
@@ -575,8 +580,9 @@
         ${earned.length ? `<p style="margin-top:14px"><b>New badge${earned.length > 1 ? 's' : ''}:</b><br>${earned.map((b) => `<span class="badge">${E.BADGES[b][0]} ${E.BADGES[b][1]}</span>`).join('')}</p>` : ''}
         <p class="muted" style="margin-top:12px">${pct >= 0.9 ? 'Outstanding. You own this topic!' : pct >= 0.7 ? 'Great work. A few more reps and it sticks.' : 'Tough one! It comes back in your warm-ups so you can beat it.'}</p>
         <button class="btn big go" id="home">Back home 🏠</button>
-      </div>${review}`);
+      </div>${nextUp()}${review}`);
     $('#home').onclick = home;
+    bindPracticeButtons();
     if (pack) $('#open').onclick = () => { sfx.level(); confetti(60); $('#pack').innerHTML = `<div class="pack-open">${pack.em}<b>${esc(pack.label)}</b>${pack.kind ? '<span>Equip it in the Locker room</span>' : ''}</div>`; };
   }
 
@@ -662,18 +668,127 @@
     app.querySelectorAll('[data-c]').forEach((b) => (b.onclick = () => { S.court = b.dataset.c; applyCourt(); save(); lockerRoom(); }));
   }
 
-  // ── Extra practice: 5 quick questions on any topic already taught
-  function practicePicker() {
-    const taught = E.taughtTopics(S, S.classIdx);
-    const ids = taught.length ? taught : [E.ORDER[0]];
-    h(`<div class="card"><div class="row spread"><h2>🎯 Extra practice</h2><button class="btn ghost small" id="back">✕</button></div>
-        <p class="muted">5 quick questions. Pick any topic you've learned.</p>
-        <div class="grid2">${ids.map((id) => `<button class="btn ghost" data-t="${id}">${TOP[id].emoji} ${TOP[id].name}</button>`).join('')}</div></div>`);
+  // ── Practice Ground: any topic, any time, at the difficulty he picks. Nothing here changes the
+  // season record, but answers do count toward topic mastery, so the coach's picks stay current.
+  const CHAPTERS = [
+    ['🔢 Numbers & arithmetic', ['mental', 'fractions', 'percents', 'ratios', 'rates', 'units']],
+    ['🧮 Number theory', ['divisibility', 'gcflcm', 'divisors', 'remainders', 'exponents']],
+    ['📈 Algebra, patterns & data', ['equations', 'sequences', 'stats', 'graphs']],
+    ['📐 Geometry', ['angles', 'area', 'pythag', 'similar', 'circles', 'coords', 'solids', 'spatial']],
+    ['🎲 Counting & probability', ['counting', 'combos', 'casework', 'paths', 'probability', 'probplus']],
+    ['🧩 Logic', ['logic']],
+  ];
+  const LEVELS = { easy: ['🟢 Easy', [1]], mix: ['🟡 Mixed', [1, 2, 2, 3, 3]], hard: ['🔴 AMC hard', [3]] };
+  const pg = { level: 'mix', count: 5 };
+  try { Object.assign(pg, JSON.parse(pref('mh-pg') || '{}')); } catch { /* defaults */ }
+
+  const focusWhy = (f) => [f.n ? `${f.pct}% first-try lately` : '', f.misses ? `${f.misses} "didn't know" tags` : ''].filter(Boolean).join(' · ');
+  const masteryPct = (id) => { const m = S.mastery[id]; return m && m.r.length ? Math.round((100 * m.r.reduce((a, b) => a + b, 0)) / m.r.length) : null; };
+
+  function practiceQuestions(id, level, count) {
+    const lv = LEVELS[level][1], gens = window.U.shuffle(TOP[id].gens.map((_, i) => i));
+    return Array.from({ length: count }, (_, k) => E.makeQuestion(id, lv[Math.floor((k * lv.length) / count)], gens[k % gens.length]));
+  }
+  function startPractice(id) {
+    startClass(null, { idx: -1, kind: 'practice', title: TOP[id].name, segments: [{ type: 'quiz', part: 1, questions: practiceQuestions(id, pg.level, pg.count) }] });
+  }
+  // "I've never seen this": the lesson, every shortcut for the topic, then 5 easy-to-medium questions.
+  function startLearn(id) {
+    const t = TOP[id];
+    startClass(null, { idx: -1, kind: 'practice', title: `Learn: ${t.name}`, segments: [
+      { type: 'lesson', topic: id, pass: 1 },
+      ...t.tips.map((tip) => ({ type: 'trick', topic: id, tip })),
+      { type: 'quiz', part: 1, questions: practiceQuestions(id, 'mix', 5) },
+    ] });
+  }
+  // Coach's mix: questions spread over his weakest topics (or everything taught so far).
+  function startMix() {
+    const weak = E.focusTopics(S, 4).map((f) => f.id).filter((id) => TOP[id]);
+    const pool = weak.length >= 2 ? weak : E.taughtTopics(S, S.classIdx).length ? E.taughtTopics(S, S.classIdx) : E.ORDER.slice(0, 3);
+    const qs = Array.from({ length: pg.count }, (_, k) => practiceQuestions(pool[k % pool.length], pg.level, 1)[0]);
+    startClass(null, { idx: -1, kind: 'practice', title: "Coach's mix", segments: [{ type: 'quiz', part: 1, questions: window.U.shuffle(qs) }] });
+  }
+  function bindPracticeButtons() {
+    app.querySelectorAll('[data-pt]').forEach((b) => (b.onclick = () => startPractice(b.dataset.pt)));
+    app.querySelectorAll('[data-lt]').forEach((b) => (b.onclick = () => startLearn(b.dataset.lt)));
+  }
+  const practiceRow = (id, why) => `<div class="prow"><span class="pname">${TOP[id].emoji} ${esc(TOP[id].name)}${why ? `<small class="muted">${esc(why)}</small>` : ''}</span>
+    <span class="prow-b"><button class="btn ghost small" data-lt="${id}" title="Lesson and shortcuts first">📖 Learn</button><button class="btn small" data-pt="${id}">🎯 Practice</button></span></div>`;
+
+  // After any game: the topics to work on next, from today's misses and his recent record.
+  function nextUp() {
+    const missed = {};
+    P.missed.forEach((t) => (missed[t] = (missed[t] || 0) + 1));
+    (P.review || []).forEach(({ q, pick }) => { if (pick !== q.answer && q.topic) missed[q.topic] = (missed[q.topic] || 0) + 1; });
+    const today = Object.entries(missed).filter(([id]) => TOP[id]).sort((a, b) => b[1] - a[1]).map(([id, c]) => [id, `missed ${c} today`]);
+    const overall = E.focusTopics(S, 3).filter((f) => !missed[f.id] && TOP[f.id]).map((f) => [f.id, focusWhy(f)]);
+    const recs = [...today, ...overall].slice(0, 3);
+    if (!recs.length) return '';
+    return `<div class="card"><h3>🎯 Practice these next</h3><p class="muted">Not sure how? Tap 📖 Learn for the lesson and shortcuts first.</p>${recs.map(([id, why]) => practiceRow(id, why)).join('')}</div>`;
+  }
+
+  function practiceGround() {
+    const focus = E.focusTopics(S, 4).filter((f) => TOP[f.id]);
+    const taught = new Set(E.taughtTopics(S, S.classIdx));
+    const chip = (id) => {
+      const p = masteryPct(id);
+      return p == null ? `<span class="pill">${taught.has(id) ? '—' : '🆕'}</span>` : `<span class="pill ${p >= 80 ? 'p-good' : p < 60 ? 'p-low' : ''}">${p}%</span>`;
+    };
+    h(`<div class="card"><div class="row spread"><h2>🎯 Practice Ground</h2><button class="btn ghost small" id="back">✕</button></div>
+        <p class="muted">Practice any topic, even ones the season hasn't reached. Practice never changes your season record.</p>
+        <div class="row"><b>Level</b>${Object.entries(LEVELS).map(([k, [label]]) => `<button class="btn small ${pg.level === k ? '' : 'ghost'}" data-lv="${k}">${label}</button>`).join('')}</div>
+        <div class="row" style="margin-top:8px"><b>Questions</b>${[5, 10].map((n) => `<button class="btn small ${pg.count === n ? '' : 'ghost'}" data-n="${n}">${n}</button>`).join('')}</div></div>
+      <div class="card"><h3>🧢 Coach's picks</h3>
+        ${focus.length ? `<p class="muted">Your toughest topics lately. Beat these and your score jumps.</p>${focus.map((f) => practiceRow(f.id, focusWhy(f))).join('')}`
+          : '<p class="muted">Play a few more games and the coach will spot what to practice.</p>'}
+        <button class="btn big go" id="mix" style="margin-top:10px">🎲 Coach's mix (${pg.count} questions)</button></div>
+      ${CHAPTERS.map(([name, ids]) => `<details class="card chap"><summary><h3 style="display:inline">${name}</h3></summary>
+        ${ids.filter((id) => TOP[id]).map((id) => `<div class="prow"><span class="pname">${TOP[id].emoji} ${esc(TOP[id].name)}</span>${chip(id)}
+          <span class="prow-b"><button class="btn ghost small" data-lt="${id}">📖 Learn</button><button class="btn small" data-pt="${id}">🎯 Practice</button></span></div>`).join('')}</details>`).join('')}
+      <p class="muted" style="text-align:center">% = first-try accuracy on recent questions · 🆕 = not in your season yet</p>`);
     $('#back').onclick = home;
-    app.querySelectorAll('[data-t]').forEach((b) => (b.onclick = () => {
-      const id = b.dataset.t, lv = [1, 2, 2, 3, 3];
-      startClass(null, { idx: -1, kind: 'practice', title: TOP[id].name, segments: [{ type: 'quiz', part: 1, questions: lv.map((l) => E.makeQuestion(id, l)) }] });
-    }));
+    $('#mix').onclick = startMix;
+    app.querySelectorAll('[data-lv]').forEach((b) => (b.onclick = () => { pg.level = b.dataset.lv; pref('mh-pg', JSON.stringify(pg)); practiceGround(); }));
+    app.querySelectorAll('[data-n]').forEach((b) => (b.onclick = () => { pg.count = +b.dataset.n; pref('mh-pg', JSON.stringify(pg)); practiceGround(); }));
+    bindPracticeButtons();
+  }
+
+  // ── Test Hacks: how to play the test itself, plus every shortcut from every topic in one place.
+  const GAME_PLAN = [
+    ['🎯', 'Answer every question', 'There is no penalty for a wrong answer on the AMC 8: your score is just how many you get right. Never leave a blank.', 'Out of time on #24? Pick your best guess. A blank is a guaranteed 0.'],
+    ['⏱️', 'Pace yourself', '40 minutes for 25 questions. The early ones are easier: aim to finish #1–10 in about 10 minutes and bank time for the hard ones.', 'Check the clock at question 10 and again at question 20.'],
+    ['⏭️', 'Skip and come back', 'Every question is worth 1 point. If one is eating your time, circle it, move on, and return at the end.', 'Stuck for 2 minutes? Skip. A fresh look later often cracks it.'],
+    ['🔙', 'Work backwards from the choices', 'Plug the answer choices into the problem. Choices are usually in order, so start with C: if it is too big, try A or B.', '"A number plus 3 times itself is 48." Try C = 12: 12 + 36 = 48 ✓'],
+    ['✂️', 'Eliminate', 'Cross out choices that cannot be right: wrong sign, too big, not a whole number, wrong units digit. Then guess from what is left.', 'Area of a 7 × 9 rectangle can only end in 3, so cross out every choice that doesn\'t.'],
+    ['🎲', 'Pick easy numbers', 'If a problem works for "any" number, or the answer is a formula, try a simple value like 1, 2, 10 or 100 and test each choice.', 'Percent problems: start with 100. "Up 20% then down 20%" → 100 → 120 → 96.'],
+    ['📏', 'Estimate first', 'Round the numbers to get a ballpark, then pick the choice that is close. Often only one choice fits.', '49 × 21 ≈ 50 × 20 = 1000, so 1029 beats 879 and 1290.'],
+    ['✏️', 'Draw it', 'Sketch every geometry and word problem and label what you know. Mark what you are looking for with a "?".', 'Two trains, two speeds? Draw a line with both trains on it.'],
+    ['🔍', 'Try small cases', 'Big number in the problem? Try the same thing with 1, 2, 3 and 4, and look for the pattern.', 'Units digit of 3¹⁰⁰: 3, 9, 7, 1 repeats every 4. 100 is a multiple of 4, so the answer is 1.'],
+    ['📋', 'Make a list or table', 'For counting problems, list in order so you never miss or double count one.', 'Ways to make 10¢ from pennies and nickels: 0, 1 or 2 nickels → 3 ways.'],
+    ['❓', 'Read the last line twice', 'Before you start, be sure what is asked: "NOT", "least", "how many more", minutes or hours?', 'You found Sam\'s age, but the question asked for Ann\'s. Re-read before you bubble in.'],
+    ['⚖️', 'Check odd and even', 'Odd + odd = even, and even × anything = even. This fast check rules out choices.', 'The sum of 5 odd numbers is odd, so any even choice is out.'],
+    ['🧘', 'Reset when stuck', 'Take one slow breath, re-read the question, and ask: "Which play from my Playbook fits?"', 'Mixed-up feeling? Look for a "given" you haven\'t used yet.'],
+  ];
+  function hacksPage(tab = 'plan', filter = '') {
+    const tips = CHAPTERS.flatMap(([ch, ids]) => ids.filter((id) => TOP[id]).flatMap((id) => TOP[id].tips.map((tip) => ({ ch, id, tip }))));
+    const f = filter.trim().toLowerCase();
+    const shown = f ? tips.filter(({ id, tip }) => `${TOP[id].name} ${tip.name} ${tip.how} ${tip.ex}`.toLowerCase().includes(f)) : tips;
+    const tipCard = ({ id, tip }) => `<div class="tcard"><div class="tcard-top">${TOP[id].emoji} ${esc(TOP[id].name)}${S.cards.includes(`${id}|${tip.name}`) ? '<span>IN PLAYBOOK</span>' : ''}</div>
+      <h3>${esc(tip.name)}</h3><p>${esc(tip.how)}</p><div class="ex">${esc(tip.ex)}</div>
+      <div class="row" style="margin-top:10px"><button class="btn ghost small" data-say="${esc(`${tip.name}. ${tip.how}. Example: ${tip.ex}`)}">🔊</button><button class="btn small" data-pt="${id}">🎯 Try it</button></div></div>`;
+    h(`<div class="card"><div class="row spread"><h2>🧰 Test Hacks</h2><button class="btn ghost small" id="back">✕</button></div>
+        <div class="row"><button class="btn small ${tab === 'plan' ? '' : 'ghost'}" id="t-plan">🏀 Test-day game plan</button><button class="btn small ${tab === 'tips' ? '' : 'ghost'}" id="t-tips">⚡ Shortcuts by topic (${tips.length})</button></div></div>
+      ${tab === 'plan' ? `<div class="cards">${GAME_PLAN.map(([em, name, how, ex]) => `<div class="tcard"><div class="tcard-top">Game plan</div><h3>${em} ${esc(name)}</h3><p>${esc(how)}</p><div class="ex">${esc(ex)}</div>
+          <div class="row" style="margin-top:10px"><button class="btn ghost small" data-say="${esc(`${name}. ${how}`)}">🔊</button></div></div>`).join('')}</div>`
+        : `<div class="card"><input id="q" type="search" placeholder="Search shortcuts: square, percent, angle…" value="${esc(filter)}"></div>
+          ${CHAPTERS.map(([ch]) => { const list = shown.filter((x) => x.ch === ch); return list.length ? `<h3>${ch}</h3><div class="cards">${list.map(tipCard).join('')}</div>` : ''; }).join('') || '<p class="muted">No shortcut matches that search.</p>'}`}`);
+    $('#back').onclick = home;
+    $('#t-plan').onclick = () => hacksPage('plan');
+    $('#t-tips').onclick = () => hacksPage('tips');
+    const q = $('#q');
+    if (q) { q.oninput = () => { const v = q.value; hacksPage('tips', v); const n = $('#q'); n.focus(); n.setSelectionRange(v.length, v.length); }; }
+    app.querySelectorAll('[data-say]').forEach((b) => (b.onclick = () => speak(b.dataset.say)));
+    bindPracticeButtons();
   }
 
   function badgesPage() {
