@@ -238,7 +238,10 @@
   }
 
   // Color code used in all lessons: {g:given} blue, {f:find} orange, {a:answer} green.
-  const fmt = (t) => String(t).replace(/\{([gfa]):([^}]*)\}/g, (_, k, x) => `<span class="cc-${k}">${x}</span>`);
+  // Superscript digits as <sup>, since some fonts draw ⁰ badly. Input must already be safe HTML.
+  const SUPS = '⁰¹²³⁴⁵⁶⁷⁸⁹';
+  const sup = (t) => String(t).replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹]+/g, (m) => `<sup>${[...m].map((c) => SUPS.indexOf(c)).join('')}</sup>`);
+  const fmt = (t) => sup(String(t).replace(/\{([gfa]):([^}]*)\}/g, (_, k, x) => `<span class="cc-${k}">${x}</span>`));
   const plain = (t) => String(t).replace(/\{[gfa]:([^}]*)\}/g, '$1');
 
   function slide(s) {
@@ -727,8 +730,8 @@
     let tries = 0;
     const opts = window.U.shuffle(c.check.options.slice());
     h(`<span class="tag">🏀 Your turn · ${esc(c.title)}</span>
-      <div class="card" id="qc"><div class="qtext">${esc(c.check.q)}</div>
-        <div class="choices">${opts.map((o, k) => `<button class="choice" data-c="${esc(o)}"><span class="L">${LETTERS[k]}</span><span>${esc(o)}</span></button>`).join('')}</div>
+      <div class="card" id="qc"><div class="qtext">${sup(esc(c.check.q))}</div>
+        <div class="choices">${opts.map((o, k) => `<button class="choice" data-c="${esc(o)}"><span class="L">${LETTERS[k]}</span><span>${sup(esc(o))}</span></button>`).join('')}</div>
         <div id="fb"></div></div>`);
     autoSpeak(c.check.q);
     const btns = [...app.querySelectorAll('.choice')];
@@ -743,7 +746,7 @@
       }
       btns.forEach((x) => { x.disabled = true; if (x.dataset.c === c.check.answer) x.classList.add('right'); });
       if (ok) { sfx.good(); swish(); } else sfx.bad();
-      $('#fb').innerHTML = `<div class="feedback ${ok ? 'good' : 'bad'}">${ok ? (tries === 1 ? 'Swish! 🏀' : 'Got it on the rebound 👍') : `The answer is <b>${esc(c.check.answer)}</b>.`} ${esc(c.check.why)}</div>
+      $('#fb').innerHTML = `<div class="feedback ${ok ? 'good' : 'bad'}">${ok ? (tries === 1 ? 'Swish! 🏀' : 'Got it on the rebound 👍') : `The answer is <b>${sup(esc(c.check.answer))}</b>.`} ${sup(esc(c.check.why))}</div>
         <p></p><button class="btn big" id="nx">Next ▶</button>`;
       $('#nx').onclick = () => clipDone(c, ok && tries === 1);
       keyHandler = (e) => { if (e.key === 'Enter') { e.preventDefault(); clipDone(c, ok && tries === 1); } };
@@ -762,7 +765,7 @@
     const more = clipsFor(c.topic).find((x) => !watched(x)) || CLIPS.find((x) => !watched(x));
     sfx.level(); if (isNew) confetti(40);
     h(`<div class="tcard flip" style="text-align:center"><div class="tcard-top">🧠 Remember this<span>${TOP[c.topic].emoji}</span></div>
-        <h2>${esc(c.remember)}</h2>${pts ? `<p class="muted">+${pts} points</p>` : ''}</div>
+        <h2>${sup(esc(c.remember))}</h2>${pts ? `<p class="muted">+${pts} points</p>` : ''}</div>
       <div class="card"><div class="grid2">
         ${more ? `<button class="btn go" id="more">▶ Next clip: ${more.emoji} ${esc(more.title)}</button>` : ''}
         <button class="btn" data-pt="${c.topic}">🎯 Practice ${esc(TOP[c.topic].name)}</button>
