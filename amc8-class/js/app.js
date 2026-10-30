@@ -149,6 +149,7 @@
         <div class="map" id="map">${nodes}</div>
       </div>
       <div class="grid2">
+        <button class="btn ghost" id="studio">🎬 Concept Studio</button>
         <button class="btn ghost" id="practice">🎯 Practice Ground</button>
         <button class="btn ghost" id="hacks">🧰 Test Hacks</button>
         <button class="btn ghost" id="cards">🃏 Playbook (${S.cards.length})</button>
@@ -160,6 +161,7 @@
     onHome = true;
     $('#start').onclick = () => startClass(S.classIdx);
     $('#practice').onclick = practiceGround;
+    $('#studio').onclick = studioHome;
     $('#hacks').onclick = () => hacksPage();
     if ($('#coach')) $('#coach').onclick = () => startPractice($('#coach').dataset.t);
     $('#badges').onclick = badgesPage;
@@ -666,6 +668,111 @@
     $('#num').oninput = () => { S.number = Math.max(0, Math.min(99, parseInt($('#num').value, 10) || 0)); $('#av').innerHTML = jerseySvg(140); };
     app.querySelectorAll('[data-j]').forEach((b) => (b.onclick = () => { S.jersey = b.dataset.j; save(); lockerRoom(); }));
     app.querySelectorAll('[data-c]').forEach((b) => (b.onclick = () => { S.court = b.dataset.c; applyCourt(); save(); lockerRoom(); }));
+  }
+
+  // ── Concept Studio: short visual clips that coach one idea at a time (js/studio-*.js).
+  // One picture and one sentence per screen, he moves on when he's ready, then a quick
+  // "your turn" check and a takeaway card. Watching never changes the season record.
+  const CLIPS = window.CLIPS || [];
+  const clipsFor = (id) => CLIPS.filter((c) => c.topic === id);
+  const watched = (c) => (S.clips || []).includes(c.id);
+
+  function studioHome() {
+    const focus = E.focusTopics(S, 4).map((f) => f.id);
+    const upNext = CLIPS.find((c) => focus.includes(c.topic) && !watched(c)) || CLIPS.find((c) => !watched(c));
+    const done = CLIPS.filter(watched).length;
+    h(`<div class="card"><div class="row spread"><h2>🎬 Concept Studio</h2><button class="btn ghost small" id="back">✕</button></div>
+        <p class="muted">Short picture clips, one idea each. Tap through at your own speed, then try one yourself.</p>
+        <div class="xpbar"><i style="width:${CLIPS.length ? (100 * done) / CLIPS.length : 0}%"></i></div>
+        <p class="muted" style="margin:6px 0 0">${done} of ${CLIPS.length} clips watched</p></div>
+      ${upNext ? `<div class="card court"><span class="tag">Up next${focus.includes(upNext.topic) ? " · coach's pick" : ''}</span>
+        <h2>${upNext.emoji} ${esc(upNext.title)}</h2><p class="muted">${TOP[upNext.topic].emoji} ${esc(TOP[upNext.topic].name)} · ${upNext.frames.length} screens + 1 question</p>
+        <button class="btn big go" data-clip="${upNext.id}">▶ Watch</button></div>` : ''}
+      ${CHAPTERS.filter(([, ids]) => ids.some((id) => clipsFor(id).length)).map(([name, ids]) => {
+        const list = ids.flatMap(clipsFor);
+        return `<details class="card chap" open><summary><h3 style="display:inline">${name}</h3> <span class="muted">${list.filter(watched).length}/${list.length}</span></summary>
+          <div class="clips">${list.map((c) => `<button class="clip ${watched(c) ? 'seen' : ''}" data-clip="${c.id}"><span class="cem">${c.emoji}</span><b>${esc(c.title)}</b><small>${TOP[c.topic].emoji} ${esc(TOP[c.topic].name)}${watched(c) ? ' · ✅' : ''}</small></button>`).join('')}</div></details>`;
+      }).join('')}
+      ${(() => { const soon = CHAPTERS.filter(([, ids]) => !ids.some((id) => clipsFor(id).length)).map(([name]) => name); return soon.length ? `<div class="card soon"><h3>🎬 Coming soon</h3><p>${soon.join(' · ')}</p><p class="muted">Until then, 📖 Learn in the Practice Ground teaches every topic.</p></div>` : ''; })()}`);
+    $('#back').onclick = home;
+    app.querySelectorAll('[data-clip]').forEach((b) => (b.onclick = () => playClip(CLIPS.find((c) => c.id === b.dataset.clip))));
+  }
+
+  function playClip(c, i = 0) {
+    clearTimers(); keyHandler = null;
+    const f = c.frames[i], last = i === c.frames.length - 1;
+    h(`<div class="topbar"><button class="btn ghost small" id="x" aria-label="Back to the Studio">✕</button>
+        <div class="steps">${c.frames.map((_, k) => `<i class="${k < i ? 'on' : k === i ? 'cur' : ''}"></i>`).join('')}<i></i></div></div>
+      <span class="tag">🎬 ${esc(TOP[c.topic].name)} · ${i + 1} of ${c.frames.length}</span>
+      <div class="card clipcard"><h2>${c.emoji} ${esc(c.title)}</h2>
+        <div id="stage">${f.svg}</div>
+        <p class="clipsay">${fmt(f.say)}</p>
+        <div class="row spread"><span class="row"><button class="btn ghost small" id="prev" ${i ? '' : 'disabled'}>◀</button><button class="btn ghost small" id="again" title="Play the picture again">🔁</button><button class="btn ghost small" id="say">🔊</button></span>
+          <button class="btn go" id="nx">${last ? 'My turn! 🏀' : 'Next ▶'}</button></div></div>`);
+    sfx.tick(); autoSpeak(plain(f.say));
+    const go = (k) => (k < c.frames.length ? playClip(c, k) : clipCheck(c));
+    $('#x').onclick = studioHome;
+    $('#prev').onclick = () => i && go(i - 1);
+    $('#again').onclick = () => { $('#stage').innerHTML = f.svg; };
+    $('#say').onclick = () => speak(plain(f.say));
+    $('#nx').onclick = () => go(i + 1);
+    keyHandler = (e) => {
+      if (e.key === 'Enter' || e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); go(i + 1); }
+      if (e.key === 'ArrowLeft' && i) go(i - 1);
+    };
+  }
+
+  function clipCheck(c) {
+    keyHandler = null;
+    let tries = 0;
+    const opts = window.U.shuffle(c.check.options.slice());
+    h(`<span class="tag">🏀 Your turn · ${esc(c.title)}</span>
+      <div class="card" id="qc"><div class="qtext">${esc(c.check.q)}</div>
+        <div class="choices">${opts.map((o, k) => `<button class="choice" data-c="${esc(o)}"><span class="L">${LETTERS[k]}</span><span>${esc(o)}</span></button>`).join('')}</div>
+        <div id="fb"></div></div>`);
+    autoSpeak(c.check.q);
+    const btns = [...app.querySelectorAll('.choice')];
+    const pick = (b) => {
+      if (b.disabled) return;
+      tries++;
+      const ok = b.dataset.c === c.check.answer;
+      if (!ok && tries === 1) {
+        sfx.bad(); b.classList.add('wrong'); b.disabled = true;
+        $('#fb').innerHTML = `<div class="feedback bad">Not quite. Peek back at the clip in your head and shoot again! 💪</div>`;
+        return;
+      }
+      btns.forEach((x) => { x.disabled = true; if (x.dataset.c === c.check.answer) x.classList.add('right'); });
+      if (ok) { sfx.good(); swish(); } else sfx.bad();
+      $('#fb').innerHTML = `<div class="feedback ${ok ? 'good' : 'bad'}">${ok ? (tries === 1 ? 'Swish! 🏀' : 'Got it on the rebound 👍') : `The answer is <b>${esc(c.check.answer)}</b>.`} ${esc(c.check.why)}</div>
+        <p></p><button class="btn big" id="nx">Next ▶</button>`;
+      $('#nx').onclick = () => clipDone(c, ok && tries === 1);
+      keyHandler = (e) => { if (e.key === 'Enter') { e.preventDefault(); clipDone(c, ok && tries === 1); } };
+    };
+    btns.forEach((b) => (b.onclick = () => pick(b)));
+    keyHandler = (e) => { const k = '1234'.indexOf(e.key) >= 0 ? +e.key - 1 : LETTERS.indexOf(e.key.toUpperCase()); if (btns[k]) pick(btns[k]); };
+  }
+
+  function clipDone(c, firstTry) {
+    keyHandler = null;
+    const isNew = !watched(c);
+    const pts = (isNew ? 10 : 0) + (firstTry ? 5 : 0);
+    if (isNew) (S.clips = S.clips || []).push(c.id);
+    S.xp += pts;
+    save();
+    const more = clipsFor(c.topic).find((x) => !watched(x)) || CLIPS.find((x) => !watched(x));
+    sfx.level(); if (isNew) confetti(40);
+    h(`<div class="tcard flip" style="text-align:center"><div class="tcard-top">🧠 Remember this<span>${TOP[c.topic].emoji}</span></div>
+        <h2>${esc(c.remember)}</h2>${pts ? `<p class="muted">+${pts} points</p>` : ''}</div>
+      <div class="card"><div class="grid2">
+        ${more ? `<button class="btn go" id="more">▶ Next clip: ${more.emoji} ${esc(more.title)}</button>` : ''}
+        <button class="btn" data-pt="${c.topic}">🎯 Practice ${esc(TOP[c.topic].name)}</button>
+        <button class="btn ghost" id="again">🔁 Watch again</button>
+        <button class="btn ghost" id="studio">🎬 Studio</button></div></div>`);
+    autoSpeak(c.remember);
+    if (more) $('#more').onclick = () => playClip(more);
+    $('#again').onclick = () => playClip(c);
+    $('#studio').onclick = studioHome;
+    bindPracticeButtons();
   }
 
   // ── Practice Ground: any topic, any time, at the difficulty he picks. Nothing here changes the

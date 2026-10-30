@@ -6,10 +6,10 @@ import { fileURLToPath } from 'node:url';
 
 const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'js');
 const ctx = vm.createContext({ console, Math, Date });
-for (const f of ['util.js', 'viz.js', 'hoops.js', 'topics-number.js', 'topics-algebra.js', 'topics-geometry.js', 'topics-logic.js', 'topics-counting.js', 'topics-visual.js', 'hard.js', 'hard-diagrams.js', 'engine.js']) {
+for (const f of ['util.js', 'viz.js', 'hoops.js', 'topics-number.js', 'topics-algebra.js', 'topics-geometry.js', 'topics-logic.js', 'topics-counting.js', 'topics-visual.js', 'hard.js', 'hard-diagrams.js', 'studio-counting.js', 'engine.js']) {
   vm.runInContext(fs.readFileSync(path.join(dir, f), 'utf8'), ctx, { filename: f });
 }
-const { TOPICS, Engine, U } = ctx;
+const { TOPICS, Engine, U, CLIPS } = ctx;
 
 let failures = 0;
 const fail = (msg) => { failures++; if (failures < 40) console.error('FAIL', msg); };
@@ -116,4 +116,15 @@ Engine.migratePlan(old);
 if (old.classIdx !== 2 || old.planVersion !== Engine.PLAN_VERSION) fail(`migration put him at ${old.classIdx}`);
 
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
-console.log(`OK — ${TOPICS.length} topics, ${TOPICS.reduce((n, t) => n + t.gens.length, 0)} question types, ${plan.length} classes`);
+// Concept Studio clips: unique ids, a real topic, frames with a picture and a sentence, and a
+// check whose answer is one of its (distinct) options.
+const clipIds = new Set();
+for (const c of CLIPS) {
+  if (clipIds.has(c.id)) fail(`clip ${c.id}: duplicate id`); clipIds.add(c.id);
+  if (!ids.includes(c.topic)) fail(`clip ${c.id}: unknown topic ${c.topic}`);
+  if (!c.title || !c.emoji || !c.remember || !c.frames.length) fail(`clip ${c.id}: missing title, emoji, takeaway or frames`);
+  c.frames.forEach((f, i) => { if (!/^<svg/.test(f.svg) || !f.say || bad(f.svg) || bad(f.say)) fail(`clip ${c.id} frame ${i + 1}: bad svg or text`); });
+  const o = c.check.options;
+  if (!o.includes(c.check.answer) || new Set(o).size !== o.length || !c.check.why) fail(`clip ${c.id}: check answer/options`);
+}
+console.log(`OK — ${TOPICS.length} topics, ${TOPICS.reduce((n, t) => n + t.gens.length, 0)} question types, ${plan.length} classes, ${CLIPS.length} clips`);
