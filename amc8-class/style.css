@@ -217,3 +217,6 @@ details.chap summary::before { content: '▸ '; } details.chap[open] summary::be
 .clipcard .viz { max-height: 340px; }
 .clipsay { font-size: 21px; line-height: 1.45; font-weight: 600; min-height: 3em; }
 .card.soon { opacity: .7; }
+.viz .gridl { stroke: var(--line); stroke-width: 1; }
+.viz .d-t { fill: var(--accent4); }
+.viz circle.draw { fill: none; }
