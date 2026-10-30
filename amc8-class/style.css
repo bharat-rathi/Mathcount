@@ -206,3 +206,14 @@ label { display: block; font-weight: 700; margin: 10px 0 4px; }
 .pill.p-low { border-color: var(--bad); color: var(--bad); }
 details.chap summary { cursor: pointer; list-style: none; }
 details.chap summary::before { content: '▸ '; } details.chap[open] summary::before { content: '▾ '; }
+
+/* Concept Studio */
+.clips { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; margin-top: 10px; }
+.clip { display: flex; flex-direction: column; gap: 4px; text-align: left; background: var(--card); border: 3px solid var(--line); border-radius: 16px; padding: 12px; font: inherit; color: inherit; cursor: pointer; }
+.clip:hover { border-color: var(--accent); }
+.clip.seen { border-color: var(--good); }
+.clip .cem { font-size: 30px; }
+.clip small { color: var(--muted); }
+.clipcard .viz { max-height: 340px; }
+.clipsay { font-size: 21px; line-height: 1.45; font-weight: 600; min-height: 3em; }
+.card.soon { opacity: .7; }
