@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Math Hoops Admin</title>
+  <link rel="icon" href="icon.svg">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    main { max-width: 1180px; }
+    .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+    .scroll { overflow-x: auto; }
+    th[data-s] { cursor: pointer; white-space: nowrap; }
+    th[data-s]:hover { color: var(--accent); }
+    td { white-space: nowrap; }
+    td.wrap { white-space: normal; min-width: 160px; }
+    .bars { display: flex; align-items: flex-end; gap: 3px; height: 90px; margin-top: 8px; }
+    .bars i { flex: 1; background: var(--accent2); border-radius: 4px 4px 0 0; min-height: 2px; }
+    .bars-x { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+    input[type=search] { max-width: 320px; }
+  </style>
+</head>
+<body>
+  <main id="app" aria-live="polite"></main>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/cloud.js"></script>
+  <script src="js/admin.js"></script>
+</body>
+</html>

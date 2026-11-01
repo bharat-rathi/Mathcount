@@ -1046,7 +1046,7 @@
         <label><input type="checkbox" id="eo" style="width:auto" ${!settings || settings.email_enabled ? 'checked' : ''}> Send the daily email</label>
         <p></p><button class="btn" id="es">Save email settings</button> <span id="ess" class="muted"></span></div>
       <div class="card"><div class="row"><button class="btn ghost" id="out">Sign out</button><button class="btn ghost" id="del">Delete my family's data</button><span id="adm"></span></div></div>`);
-    C.isAdmin().then((ok) => { const a = $('#adm'); if (ok && a) { a.innerHTML = '<button class="btn" id="an">📊 Analytics</button>'; $('#an').onclick = analyticsPage; } }).catch(() => {});
+    C.isAdmin().then((ok) => { const a = $('#adm'); if (ok && a) { a.innerHTML = '<a class="btn" id="an" href="admin.html" target="_blank" rel="noopener">📊 Admin dashboard</a>'; } }).catch(() => {});
     app.querySelectorAll('[data-k]').forEach((b) => (b.onclick = () => playAs(kids.find((k) => k.id === b.dataset.k))));
     if ($('#add')) $('#add').onclick = async () => {
       const n = $('#kn').value.trim(); if (!n) return $('#kn').focus();
@@ -1073,38 +1073,6 @@
       try { await C.deleteFamily(); } catch (e) { return alert(`Could not delete: ${e.message || e}`); }
       kids.forEach((k) => { try { localStorage.removeItem(`${KEY}:${k.id}`); } catch { /* ignore */ } });
       await C.signOut(); kidId = null; pref('mh-kid', null); authScreen();
-    };
-  }
-
-  // ── Analytics for the site owner: every family, their kids, time and results. Only works for
-  // emails in the admins table (supabase/migrations/002-analytics.sql); the database checks it.
-  async function analyticsPage() {
-    h('<div class="card"><p>Loading analytics…</p></div>');
-    let fams;
-    try { fams = await C.adminOverview(); } catch (e) { h(`<div class="card"><p>Could not load analytics: ${esc(e.message || e)}</p><button class="btn" id="bk">Back</button></div>`); $('#bk').onclick = () => familyScreen(false); return; }
-    const kids = fams.flatMap((f) => f.kids.map((k) => ({ ...k, email: f.email })));
-    const weekAgo = Date.now() - 7 * 864e5;
-    const active = kids.filter((k) => k.last_played && new Date(k.last_played) > weekAgo).length;
-    const mins = (k) => Math.max((k.report && k.report.minutes) || 0, Math.round(k.game_seconds / 60));
-    const hm = (m) => (m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`);
-    const ago = (t) => { if (!t) return '—'; const d = Math.floor((Date.now() - new Date(t)) / 864e5); return d <= 0 ? 'today' : d === 1 ? 'yesterday' : `${d} days ago`; };
-    const weakest = (r) => Object.entries((r && r.mastery) || {}).filter(([, m]) => m.n >= 5).sort((a, b) => a[1].pct - b[1].pct).slice(0, 2).map(([n, m]) => `${n} ${m.pct}%`).join(', ');
-    const row = (k) => { const r = k.report || {}; return [k.email, k.name, k.games, k.days_active, hm(mins(k)), k.total ? Math.round((100 * k.right) / k.total) + '%' : '—', r.classIdx != null ? `${r.classIdx}/${r.totalClasses}` : '—', r.streak || 0, r.clips || 0, ago(k.last_played), weakest(r)]; };
-    const HEAD = ['Parent', 'Kid', 'Games', 'Days', 'Time', 'Accuracy', 'Season', 'Streak', 'Clips', 'Last played', 'Weakest'];
-    h(`<div class="card"><div class="row spread"><h2>📊 Analytics</h2><button class="btn ghost small" id="back">✕</button></div>
-        <div class="grid2"><div class="stat"><b>${fams.length}</b>families</div><div class="stat"><b>${kids.length}</b>kids</div><div class="stat"><b>${active}</b>kids active this week</div><div class="stat"><b>${hm(kids.reduce((a, k) => a + mins(k), 0))}</b>total time</div></div>
-        <p></p><button class="btn ghost small" id="csv">⬇️ Download CSV</button></div>
-      ${fams.map((f) => `<div class="card"><h3 style="word-break:break-all">${esc(f.email)}</h3>
-        <p class="muted">Joined ${esc(String(f.joined).slice(0, 10))} · last sign-in ${ago(f.last_sign_in)} · ${f.kids.length} kid${f.kids.length === 1 ? '' : 's'}</p>
-        ${f.kids.length ? `<div style="overflow-x:auto"><table><thead><tr>${HEAD.slice(1).map((x) => `<th>${x}</th>`).join('')}</tr></thead><tbody>${f.kids.map((k) => `<tr>${row({ ...k, email: f.email }).slice(1).map((x) => `<td>${esc(String(x))}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : '<p class="muted">No players added yet.</p>'}</div>`).join('')}
-      <p class="muted" style="text-align:center">Time counts games, practice and clips (each capped so an open tab doesn't inflate it). Accuracy is over all game questions.</p>`);
-    $('#back').onclick = () => familyScreen(false);
-    $('#csv').onclick = () => {
-      const q = (x) => `"${String(x).replace(/"/g, '""')}"`;
-      const text = [HEAD, ...kids.map(row)].map((r) => r.map(q).join(',')).join('\n');
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(new Blob([text], { type: 'text/csv' }));
-      a.download = `math-hoops-${E.dayKey()}.csv`; a.click();
     };
   }
 
