@@ -28,7 +28,7 @@
     name: S.name, updatedAt: new Date().toISOString(), contestDate: S.contestDate,
     classIdx: S.classIdx, totalClasses: E.buildPlan().length, streak: S.streak, bestStreak: S.bestStreak,
     xp: S.xp, level: E.levelOf(S.xp).lvl, badges: S.badges,
-    recent: S.log.slice(-14), mistakes: S.mistakes || {},
+    recent: S.log.slice(-14), mistakes: S.mistakes || {}, minutes: Math.round((S.secs || 0) / 60), clips: (S.clips || []).length,
     mastery: Object.fromEntries(Object.entries(S.mastery).filter(([, m]) => m.r.length).map(([id, m]) =>
       [TOP[id].name, { pct: Math.round((100 * m.r.reduce((a, b) => a + b, 0)) / m.r.length), n: m.r.length }])),
   });
@@ -591,7 +591,9 @@
       P.review.forEach(({ q, pick }) => { const b = (byTopic[q.topic] = byTopic[q.topic] || [0, 0]); b[1]++; if (pick === q.answer) b[0]++; });
       S.playoff = { day: E.dayKey(), right: P.right, total: P.total, byTopic };
     }
-    if (!P.practice) earned = E.finishClass(S, P.cls, { xp: P.xp, right: P.right, total: P.total, score: P.right, bossWin: P.bossWin });
+    const secs = Math.min(3600, Math.round((Date.now() - P.t0) / 1000));
+    S.secs = (S.secs || 0) + secs;
+    if (!P.practice) { earned = E.finishClass(S, P.cls, { xp: P.xp, right: P.right, total: P.total, score: P.right, bossWin: P.bossWin }); S.log[S.log.length - 1].secs = secs; }
     else S.xp += P.xp;
     const win = !P.practice && earned.win;
     const pack = P.practice ? null : openPack(win);
@@ -730,8 +732,10 @@
     app.querySelectorAll('[data-clip]').forEach((b) => (b.onclick = () => playClip(CLIPS.find((c) => c.id === b.dataset.clip))));
   }
 
+  let clipT0 = 0;
   function playClip(c, i = 0) {
     clearTimers(); keyHandler = null;
+    if (i === 0) clipT0 = Date.now();
     const f = c.frames[i], last = i === c.frames.length - 1;
     h(`<div class="topbar"><button class="btn ghost small" id="x" aria-label="Back to the Studio">✕</button>
         <div class="steps">${c.frames.map((_, k) => `<i class="${k < i ? 'on' : k === i ? 'cur' : ''}"></i>`).join('')}<i></i></div></div>
@@ -789,6 +793,7 @@
     const isNew = !watched(c);
     const pts = (isNew ? 10 : 0) + (firstTry ? 5 : 0);
     if (isNew) (S.clips = S.clips || []).push(c.id);
+    S.secs = (S.secs || 0) + Math.min(900, Math.round((Date.now() - clipT0) / 1000));
     S.xp += pts;
     save();
     const more = clipsFor(c.topic).find((x) => !watched(x)) || CLIPS.find((x) => !watched(x));
@@ -996,7 +1001,7 @@
         <div id="st" class="muted" style="margin-top:10px"></div>
         <hr style="border:0;border-top:1px solid var(--line);margin:18px 0">
         <button class="btn ghost" id="local">Play on this device only (no account)</button>
-        <p class="muted" style="font-size:13px;margin-top:12px">We store only nicknames and game progress. You can delete your family's data at any time.</p></div>`);
+        <p class="muted" style="font-size:13px;margin-top:12px">We store only your email, nicknames and game progress, visible to you and the site owner. You can delete your family's data at any time.</p></div>`);
     $('#send').onclick = async () => {
       const em = $('#em').value.trim();
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) return $('#em').focus();
@@ -1040,7 +1045,8 @@
         <label for="eh">Time (${esc(tz)})</label><select id="eh">${[...Array(24).keys()].map((x) => `<option value="${x}" ${x === ((settings && settings.send_hour) ?? 20) ? 'selected' : ''}>${(x % 12) || 12}:00 ${x < 12 ? 'AM' : 'PM'}</option>`).join('')}</select>
         <label><input type="checkbox" id="eo" style="width:auto" ${!settings || settings.email_enabled ? 'checked' : ''}> Send the daily email</label>
         <p></p><button class="btn" id="es">Save email settings</button> <span id="ess" class="muted"></span></div>
-      <div class="card"><div class="row"><button class="btn ghost" id="out">Sign out</button><button class="btn ghost" id="del">Delete my family's data</button></div></div>`);
+      <div class="card"><div class="row"><button class="btn ghost" id="out">Sign out</button><button class="btn ghost" id="del">Delete my family's data</button><span id="adm"></span></div></div>`);
+    C.isAdmin().then((ok) => { const a = $('#adm'); if (ok && a) { a.innerHTML = '<button class="btn" id="an">📊 Analytics</button>'; $('#an').onclick = analyticsPage; } }).catch(() => {});
     app.querySelectorAll('[data-k]').forEach((b) => (b.onclick = () => playAs(kids.find((k) => k.id === b.dataset.k))));
     if ($('#add')) $('#add').onclick = async () => {
       const n = $('#kn').value.trim(); if (!n) return $('#kn').focus();
@@ -1067,6 +1073,38 @@
       try { await C.deleteFamily(); } catch (e) { return alert(`Could not delete: ${e.message || e}`); }
       kids.forEach((k) => { try { localStorage.removeItem(`${KEY}:${k.id}`); } catch { /* ignore */ } });
       await C.signOut(); kidId = null; pref('mh-kid', null); authScreen();
+    };
+  }
+
+  // ── Analytics for the site owner: every family, their kids, time and results. Only works for
+  // emails in the admins table (supabase/migrations/002-analytics.sql); the database checks it.
+  async function analyticsPage() {
+    h('<div class="card"><p>Loading analytics…</p></div>');
+    let fams;
+    try { fams = await C.adminOverview(); } catch (e) { h(`<div class="card"><p>Could not load analytics: ${esc(e.message || e)}</p><button class="btn" id="bk">Back</button></div>`); $('#bk').onclick = () => familyScreen(false); return; }
+    const kids = fams.flatMap((f) => f.kids.map((k) => ({ ...k, email: f.email })));
+    const weekAgo = Date.now() - 7 * 864e5;
+    const active = kids.filter((k) => k.last_played && new Date(k.last_played) > weekAgo).length;
+    const mins = (k) => Math.max((k.report && k.report.minutes) || 0, Math.round(k.game_seconds / 60));
+    const hm = (m) => (m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`);
+    const ago = (t) => { if (!t) return '—'; const d = Math.floor((Date.now() - new Date(t)) / 864e5); return d <= 0 ? 'today' : d === 1 ? 'yesterday' : `${d} days ago`; };
+    const weakest = (r) => Object.entries((r && r.mastery) || {}).filter(([, m]) => m.n >= 5).sort((a, b) => a[1].pct - b[1].pct).slice(0, 2).map(([n, m]) => `${n} ${m.pct}%`).join(', ');
+    const row = (k) => { const r = k.report || {}; return [k.email, k.name, k.games, k.days_active, hm(mins(k)), k.total ? Math.round((100 * k.right) / k.total) + '%' : '—', r.classIdx != null ? `${r.classIdx}/${r.totalClasses}` : '—', r.streak || 0, r.clips || 0, ago(k.last_played), weakest(r)]; };
+    const HEAD = ['Parent', 'Kid', 'Games', 'Days', 'Time', 'Accuracy', 'Season', 'Streak', 'Clips', 'Last played', 'Weakest'];
+    h(`<div class="card"><div class="row spread"><h2>📊 Analytics</h2><button class="btn ghost small" id="back">✕</button></div>
+        <div class="grid2"><div class="stat"><b>${fams.length}</b>families</div><div class="stat"><b>${kids.length}</b>kids</div><div class="stat"><b>${active}</b>kids active this week</div><div class="stat"><b>${hm(kids.reduce((a, k) => a + mins(k), 0))}</b>total time</div></div>
+        <p></p><button class="btn ghost small" id="csv">⬇️ Download CSV</button></div>
+      ${fams.map((f) => `<div class="card"><h3 style="word-break:break-all">${esc(f.email)}</h3>
+        <p class="muted">Joined ${esc(String(f.joined).slice(0, 10))} · last sign-in ${ago(f.last_sign_in)} · ${f.kids.length} kid${f.kids.length === 1 ? '' : 's'}</p>
+        ${f.kids.length ? `<div style="overflow-x:auto"><table><thead><tr>${HEAD.slice(1).map((x) => `<th>${x}</th>`).join('')}</tr></thead><tbody>${f.kids.map((k) => `<tr>${row({ ...k, email: f.email }).slice(1).map((x) => `<td>${esc(String(x))}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : '<p class="muted">No players added yet.</p>'}</div>`).join('')}
+      <p class="muted" style="text-align:center">Time counts games, practice and clips (each capped so an open tab doesn't inflate it). Accuracy is over all game questions.</p>`);
+    $('#back').onclick = () => familyScreen(false);
+    $('#csv').onclick = () => {
+      const q = (x) => `"${String(x).replace(/"/g, '""')}"`;
+      const text = [HEAD, ...kids.map(row)].map((r) => r.map(q).join(',')).join('\n');
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([text], { type: 'text/csv' }));
+      a.download = `math-hoops-${E.dayKey()}.csv`; a.click();
     };
   }
 

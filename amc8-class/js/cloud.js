@@ -33,12 +33,21 @@
     saveKid(id, state, report, game) {
       queue = queue.then(async () => {
         must(await db.from('kids').update({ state, report }).eq('id', id));
-        if (game) must(await db.from('games').insert({ kid_id: id, day: game.day, title: game.title, kind: game.kind, right: game.right, total: game.total, points: game.xp || 0 }));
+        if (game) {
+          const row = { kid_id: id, day: game.day, title: game.title, kind: game.kind, right: game.right, total: game.total, points: game.xp || 0, seconds: game.secs || 0 };
+          let r = await db.from('games').insert(row);
+          // Before the analytics migration there is no seconds column: save the game without it.
+          if (r.error && /seconds/.test(r.error.message || '')) { delete row.seconds; r = await db.from('games').insert(row); }
+          must(r);
+        }
       }).catch((e) => console.warn('Cloud save failed; the browser copy is kept.', e));
       return queue;
     },
     loadSettings: async () => must(await db.from('parent_settings').select('*').maybeSingle()),
     saveSettings: async (s) => must(await db.from('parent_settings').upsert({ ...s, parent_id: userId })),
     deleteFamily: async () => must(await db.rpc('delete_my_family')),
+    // Analytics for the site owner; the database refuses anyone not in the admins table.
+    isAdmin: async () => { const { data, error } = await db.rpc('is_admin'); return !error && data === true; },
+    adminOverview: async () => must(await db.rpc('admin_overview')),
   };
 })(window);
