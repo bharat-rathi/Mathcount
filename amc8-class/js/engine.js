@@ -19,7 +19,11 @@
   const PAPERS = [2023, 2024, 2025, 2026];
   const paperUrl = (y) => `https://live.poshenloh.com/past-contests/amc8/${y}`;
 
-  // Lessons with a practice contest after every 6, then the 4 real papers.
+  // The season ends like a real one: the Playoffs (a full 25-question contest on every topic),
+  // then a Finals Prep week built from the Playoff results, then the Finals (the real papers).
+  const PREP_GAMES = 6;
+
+  // Lessons with a practice contest after every 6, then the Playoffs, Finals Prep and Finals.
   function buildPlan() {
     const lessons = [...ORDER.map((topic) => ({ topic, pass: 1 })), ...LEVEL_UP.map((topic) => ({ topic, pass: 2 }))];
     const plan = [];
@@ -27,15 +31,24 @@
       plan.push({ type: 'lesson', ...l });
       if ((i + 1) % 6 === 0) plan.push({ type: 'mock', upTo: plan.length });
     });
+    plan.push({ type: 'playoff' });
+    for (let k = 0; k < PREP_GAMES; k++) plan.push({ type: 'prep', k });
     PAPERS.forEach((year, i) => plan.push({ type: 'paper', year, url: paperUrl(year), final: i === PAPERS.length - 1 }));
     return plan;
   }
-  const PLAN_VERSION = 3;
+  const PLAN_VERSION = 4;
+  const playoffIdx = () => buildPlan().findIndex((c) => c.type === 'playoff');
 
   // Older saves used a different plan. Rebuild his place from the class log: the nth time a
   // topic shows up is that topic's pass n, and each logged contest covers one contest slot.
   function migratePlan(state) {
     if ((state.planVersion || 1) >= PLAN_VERSION) return;
+    // Version 3 → 4 only added the Playoffs and Finals Prep before the papers.
+    if (state.planVersion === 3) {
+      if (state.classIdx >= playoffIdx()) state.classIdx += 1 + PREP_GAMES;
+      state.planVersion = PLAN_VERSION;
+      return;
+    }
     const seen = {};
     let mocks = 0;
     for (const l of state.log) {
@@ -44,7 +57,7 @@
       if (t) seen[t.id] = (seen[t.id] || 0) + 1;
     }
     const plan = buildPlan();
-    let idx = plan.findIndex((c) => (c.type === 'lesson' && (seen[c.topic] || 0) < c.pass) || (c.type === 'mock' && mocks-- <= 0) || c.type === 'paper');
+    let idx = plan.findIndex((c) => (c.type === 'lesson' && (seen[c.topic] || 0) < c.pass) || (c.type === 'mock' && mocks-- <= 0) || c.type === 'playoff');
     state.classIdx = idx < 0 ? 0 : idx;
     state.planVersion = PLAN_VERSION;
   }
@@ -99,10 +112,37 @@
     return [...new Set(ids)];
   }
 
+  // Adaptive difficulty. Each topic has a skill from 1 (easy) to 3 (AMC-hard). A first-try
+  // answer nudges it up a little; a miss drops it more, so a struggling topic gets easier
+  // fast and then climbs back slowly. Question level = the skill, rounded.
+  const avg = (r) => r.reduce((a, b) => a + b, 0) / r.length;
+  function skillOf(state, id, pass = 1) {
+    const s = (state.skill || {})[id];
+    if (s != null) return s;
+    const m = state.mastery[id];
+    if (m && m.r.length >= 3) return 1 + 2 * avg(m.r.slice(-10));
+    return pass === 2 ? 2 : 1;
+  }
+  const levelFor = (skill) => Math.max(1, Math.min(3, Math.round(skill)));
+  const adapt = (skill, correct, firstTry) => Math.max(1, Math.min(3.4, skill + (correct && firstTry ? 0.25 : correct ? -0.1 : -0.5)));
+
+  // Finals Prep topics, from the Playoffs: topics missed there first (most misses first),
+  // then the weakest topics overall.
+  function prepTopics(state) {
+    const by = (state.playoff && state.playoff.byTopic) || {};
+    const acc = (id) => { const m = state.mastery[id]; return m && m.r.length ? avg(m.r) : 0.5; };
+    const miss = (id) => (by[id] ? by[id][1] - by[id][0] : 0);
+    const missed = ORDER.filter((id) => miss(id) > 0).sort((a, b) => miss(b) - miss(a) || acc(a) - acc(b));
+    // Then the weakest topics; ties go to the big test areas, and topics aced in the Playoffs go last.
+    const rank = (id) => (by[id] ? 2 : 0) + acc(id) + (LEVEL_UP.includes(id) ? 0 : 0.01);
+    const rest = ORDER.filter((id) => !missed.includes(id)).sort((a, b) => rank(a) - rank(b));
+    return [...missed, ...rest].slice(0, PREP_GAMES);
+  }
+
   // A class is a list of segments the UI plays in order.
   function buildClass(state, idx = state.classIdx) {
     const plan = buildPlan();
-    const c = plan[Math.min(idx, plan.length - 1)];
+    let c = plan[Math.min(idx, plan.length - 1)];
     const T = byId();
     if (c.type === 'paper') {
       return { idx, kind: 'paper', title: `${c.year} AMC 8${c.final ? ' (Final Dress Rehearsal)' : ''}`, minutes: 40, year: c.year, url: c.url, segments: [{ type: 'paper', year: c.year, url: c.url }] };
@@ -119,14 +159,27 @@
       }
       return { idx, kind: 'mock', title: 'Practice Contest', minutes: 25, segments: [{ type: 'mock', questions: qs }] };
     }
+    if (c.type === 'playoff') {
+      // 25 questions over every topic (the big areas twice as likely), on the real test's curve.
+      let deck = [];
+      const qs = [];
+      for (let k = 0; k < 25; k++) {
+        if (!deck.length) deck = U.shuffle([...ORDER, ...LEVEL_UP]);
+        qs.push(k >= 22 && root.HARD ? makeHard(deck.pop(), (state.hardSeen || []).concat(qs.map((x) => x.id))) : makeQuestion(deck.pop(), k < 8 ? 1 : k < 17 ? 2 : 3));
+      }
+      return { idx, kind: 'playoff', title: '🏆 The Playoffs', minutes: 40, segments: [{ type: 'mock', questions: qs }] };
+    }
+    let prep = false;
+    if (c.type === 'prep') { prep = true; c = { type: 'lesson', topic: prepTopics(state)[c.k % PREP_GAMES], pass: 2 }; }
     const t = T[c.topic];
-    const lv = c.pass === 1 ? [1, 1, 1, 2, 2, 2, 2, 2, 3, 3] : [2, 2, 2, 2, 3, 3, 3, 3, 3, 3];
+    // Every quiz question adapts: it is re-made at the topic's current skill when it is shown.
+    const start = levelFor(skillOf(state, t.id, c.pass));
     // Use every generator before repeating one, so a quiz covers the whole topic.
     const gens = U.shuffle(t.gens.map((_, i) => i));
-    const quiz = lv.map((level, k) => makeQuestion(t.id, level, gens[k % gens.length]));
+    const quiz = gens.length ? [...Array(10)].map((_, k) => Object.assign(makeQuestion(t.id, start, gens[k % gens.length]), { adapt: true })) : [];
     const segments = [{ type: 'shootaround' }];
     const review = reviewTopics(state, taughtTopics(state, idx).filter((id) => id !== t.id), 3);
-    if (review.length) segments.push({ type: 'warmup', questions: review.map((id) => makeQuestion(id, c.pass)) });
+    if (review.length) segments.push({ type: 'warmup', questions: review.map((id) => Object.assign(makeQuestion(id, levelFor(skillOf(state, id, c.pass))), { adapt: true })) });
     segments.push({ type: 'lesson', topic: t.id, pass: c.pass });
     const tip = c.pass === 1 ? t.tips[0] : t.tips[1 + (idx % Math.max(1, t.tips.length - 1))] || t.tips[t.tips.length - 1];
     segments.push({ type: 'trick', topic: t.id, tip });
@@ -134,7 +187,7 @@
     segments.push({ type: 'break' });
     segments.push({ type: 'quiz', questions: quiz.slice(5), part: 2 });
     segments.push({ type: 'boss', questions: [root.HARD ? makeHard(t.id, state.hardSeen) : makeQuestion(t.id, 3)] });
-    return { idx, kind: 'lesson', title: `${t.emoji} ${t.name}`, pass: c.pass, topic: t.id, minutes: 20, segments };
+    return { idx, kind: 'lesson', title: prep ? `🔥 Finals Prep: ${t.emoji} ${t.name}` : `${t.emoji} ${t.name}`, pass: c.pass, topic: t.id, prep, minutes: 20, segments };
   }
 
   function record(state, q, correct, firstTry) {
@@ -183,6 +236,7 @@
     if (state.streak >= 7) give('streak7');
     if (state.streak >= 30) give('streak30');
     if (cls.kind === 'mock') give('mock');
+    if (cls.kind === 'playoff') give('playoff');
     if (cls.kind === 'mock' && result.right >= 12) give('honor');
     if (cls.kind === 'paper') give('paper');
     if (cls.kind === 'paper' && result.right >= 21) give('honorroll');
@@ -195,7 +249,7 @@
   const BADGES = {
     first: ['🌱', 'First class'], perfect: ['💎', 'Perfect quiz'], streak3: ['🔥', '3-day streak'],
     streak7: ['⚡', '7-day streak'], streak30: ['🏆', '30-day streak'], mock: ['📝', 'First contest'],
-    honor: ['🥇', '12+ on a practice contest'], paper: ['📜', 'First real AMC paper'], honorroll: ['👑', 'Honor Roll score (21+) on a real paper'], boss: ['🏀', 'Hit a game-winner'],
+    honor: ['🥇', '12+ on a practice contest'], paper: ['📜', 'First real AMC paper'], honorroll: ['👑', 'Honor Roll score (21+) on a real paper'], playoff: ['🏟️', 'Played the Playoffs'], boss: ['🏀', 'Hit a game-winner'],
   };
 
   const MISTAKES = { careless: ['😬', 'Careless slip'], concept: ['🤷', "Didn't know how"], trick: ['🃏', 'Forgot the trick'], time: ['⏱️', 'Ran out of time'] };
@@ -221,5 +275,5 @@
     return out.sort((a, b) => a.score - b.score).slice(0, n);
   }
 
-  root.Engine = { focusTopics, migratePlan, PLAN_VERSION, MISTAKES, recordMistake, makeHard, ORDER, buildPlan, newState, makeQuestion, buildClass, record, xpFor, levelOf, finishClass, dayKey, daysBetween, taughtTopics, BADGES };
+  root.Engine = { PREP_GAMES, playoffIdx, prepTopics, skillOf, levelFor, adapt, focusTopics, migratePlan, PLAN_VERSION, MISTAKES, recordMistake, makeHard, ORDER, buildPlan, newState, makeQuestion, buildClass, record, xpFor, levelOf, finishClass, dayKey, daysBetween, taughtTopics, BADGES };
 })(typeof window !== 'undefined' ? window : globalThis);

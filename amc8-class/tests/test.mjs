@@ -60,13 +60,15 @@ if (plan.length < 50) fail(`plan too short: ${plan.length}`);
 const state = Engine.newState();
 for (let i = 0; i < plan.length; i++) {
   const c = Engine.buildClass(state, i);
-  if (plan[i].type === 'lesson') {
+  if (plan[i].type === 'lesson' || plan[i].type === 'prep') {
     const types = c.segments.map((s) => s.type).join(',');
     const want = 'shootaround,' + (i === 0 ? '' : 'warmup,') + 'lesson,trick,quiz,break,quiz,boss';
     if (types !== want) fail(`class ${i} segments ${types}`);
     if (!c.segments.find((s) => s.type === 'trick').tip) fail(`class ${i} has no trick`);
   } else if (plan[i].type === 'mock' && c.segments[0].questions.length !== 15) fail(`mock ${i} size`);
   else if (plan[i].type === 'paper' && !c.segments[0].url.startsWith('https://')) fail(`paper ${i} url`);
+  else if (plan[i].type === 'playoff' && (c.segments[0].questions.length !== 25 || c.minutes !== 40)) fail(`playoffs ${i} shape`);
+  if (plan[i].type === 'prep' && !c.title.startsWith('🔥 Finals Prep')) fail(`prep ${i} title ${c.title}`);
 }
 
 // Streaks: consecutive days add, a gap resets, the same day twice counts once.
@@ -105,7 +107,33 @@ const boss = Engine.buildClass(Engine.newState(), 0).segments.find((x) => x.type
 if (!boss.hints || !boss.id) fail('clutch shot is not a hand-written problem');
 
 // Plan: every topic appears; length fits the season; real papers at the end.
-if (plan.length > 56) fail(`plan too long: ${plan.length}`);
+if (plan.length > 64) fail(`plan too long: ${plan.length}`);
+// The season ends Playoffs → Finals Prep → Finals (papers).
+const po = Engine.playoffIdx();
+if (po < 0 || plan.slice(po + 1, po + 1 + Engine.PREP_GAMES).some((c) => c.type !== 'prep') || plan[po + 1 + Engine.PREP_GAMES].type !== 'paper') fail('playoffs/prep/finals order');
+// Finals Prep goes to the topics missed in the Playoffs, most misses first.
+const ps = Object.assign(Engine.newState(), { playoff: { byTopic: { circles: [0, 3], logic: [1, 2], mental: [2, 2] } } });
+const pt = Engine.prepTopics(ps);
+if (pt[0] !== 'circles' || pt[1] !== 'logic' || pt.includes('mental') || pt.length !== Engine.PREP_GAMES) fail(`prep topics ${pt}`);
+if (!Engine.buildClass(ps, po + 1).title.includes('Circle')) fail('first prep game should be circles');
+// Adaptive difficulty: first-try wins climb slowly, misses drop faster, levels stay 1–3.
+let sk = 1;
+for (let k = 0; k < 2; k++) sk = Engine.adapt(sk, true, true);
+if (Engine.levelFor(sk) !== 2) fail(`two wins should reach level 2, got skill ${sk}`);
+sk = Engine.adapt(sk, false, false);
+if (Engine.levelFor(sk) !== 1) fail('a miss should drop the level');
+for (let k = 0; k < 20; k++) sk = Engine.adapt(sk, true, true);
+if (Engine.levelFor(sk) !== 3 || sk > 3.4) fail('skill should top out at level 3');
+if (Engine.skillOf(Engine.newState(), 'logic', 1) !== 1 || Engine.skillOf(Engine.newState(), 'logic', 2) !== 2) fail('default skill');
+const qz = Engine.buildClass(Engine.newState(), 0).segments.find((x) => x.type === 'quiz').questions;
+if (!qz.every((q) => q.adapt && q.level === 1)) fail('first lesson quiz should be adaptive and start easy');
+// Version-3 saves past the regular season skip over the new games.
+const v3 = Object.assign(Engine.newState(), { planVersion: 3, classIdx: po + 1 });
+Engine.migratePlan(v3);
+if (v3.classIdx !== po + 2 + Engine.PREP_GAMES || v3.planVersion !== Engine.PLAN_VERSION) fail(`v3 migration ${v3.classIdx}`);
+const v3b = Object.assign(Engine.newState(), { planVersion: 3, classIdx: 5 });
+Engine.migratePlan(v3b);
+if (v3b.classIdx !== 5) fail('v3 migration moved an early save');
 for (const id of ids) if (!plan.some((c) => c.topic === id)) fail(`topic ${id} not in plan`);
 if (plan.slice(-4).some((c) => c.type !== 'paper')) fail('last 4 games should be real papers');
 // Old saves move onto the new plan by what they already finished.

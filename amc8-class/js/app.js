@@ -118,11 +118,13 @@
     const daysLeft = Math.max(0, E.daysBetween(E.dayKey(), S.contestDate));
     const L = E.levelOf(S.xp);
     const doneToday = S.lastDay === E.dayKey();
-    const nextLabel = next.type === 'paper' ? `🏆 The Finals: the real ${next.year} AMC 8 (40 min)` : next.type === 'mock' ? '🏆 Playoff Game: practice contest (25 min)' : `${TOP[next.topic].emoji} ${TOP[next.topic].name}${next.pass === 2 ? ' · Level Up' : ''}`;
+    const prepT = next.type === 'prep' ? TOP[E.prepTopics(S)[next.k % E.PREP_GAMES]] : null;
+    const nextLabel = next.type === 'paper' ? `🏆 The Finals: the real ${next.year} AMC 8 (40 min)` : next.type === 'playoff' ? '🏟️ The Playoffs: full 25-question contest (40 min)' : next.type === 'prep' ? `🔥 Finals Prep ${next.k + 1}/${E.PREP_GAMES}: ${prepT.emoji} ${prepT.name}` : next.type === 'mock' ? '📝 Scrimmage: practice contest (25 min)' : `${TOP[next.topic].emoji} ${TOP[next.topic].name}${next.pass === 2 ? ' · Level Up' : ''}`;
+    const poIdx = E.playoffIdx();
     const nodes = plan.map((c, i) => {
       const cls = i < S.classIdx ? 'done' : i === S.classIdx ? 'now' : '';
-      const em = c.type === 'paper' ? '🏆' : c.type === 'mock' ? '📝' : TOP[c.topic].emoji;
-      return `<div class="node ${cls} ${c.type === 'lesson' ? '' : 'mock'}" title="${c.type === 'paper' ? `Real ${c.year} AMC 8` : c.type === 'mock' ? 'Practice contest' : esc(TOP[c.topic].name)}">${i < S.classIdx ? '✅' : em}<small>${i + 1}</small></div>`;
+      const em = c.type === 'paper' ? '🏆' : c.type === 'playoff' ? '🏟️' : c.type === 'prep' ? '🔥' : c.type === 'mock' ? '📝' : TOP[c.topic].emoji;
+      return `<div class="node ${cls} ${c.type === 'lesson' ? '' : 'mock'}" title="${c.type === 'paper' ? `Real ${c.year} AMC 8` : c.type === 'playoff' ? 'The Playoffs' : c.type === 'prep' ? 'Finals Prep' : c.type === 'mock' ? 'Practice contest' : esc(TOP[c.topic].name)}">${i < S.classIdx ? '✅' : em}<small>${i + 1}</small></div>`;
     }).join('');
     h(`
       <div class="card court">
@@ -138,12 +140,13 @@
       </div>
       <div class="card">
         <span class="tag">${doneToday ? 'Done for today! Bonus game?' : "Today's game"} · Game ${S.classIdx + 1} of ${plan.length}</span>
-        <h2>${next.type !== 'lesson' ? nextLabel : `vs. ${H.opponent(S.classIdx)}`}</h2>
-        ${next.type !== 'lesson' ? '' : `<p style="margin:0 0 6px"><b>${nextLabel}</b></p>`}
-        <p class="muted">${next.type === 'paper' ? 'A real past AMC 8: 25 problems, 40 minutes, pencil and paper. Then enter your score.' : next.type === 'mock' ? '15 contest-style questions, a timer, answers at the end, just like the real thing.' : 'Shootaround → pregame → film room → new play → 1st half → halftime → 2nd half → clutch shot. About 20 minutes.'}</p>
+        <h2>${next.type !== 'lesson' && next.type !== 'prep' ? nextLabel : `vs. ${H.opponent(S.classIdx)}`}</h2>
+        ${next.type !== 'lesson' && next.type !== 'prep' ? '' : `<p style="margin:0 0 6px"><b>${nextLabel}</b></p>`}
+        <p class="muted">${next.type === 'paper' ? 'A real past AMC 8: 25 problems, 40 minutes, pencil and paper. Then enter your score.' : next.type === 'playoff' ? 'Win-or-go-home: 25 questions on every topic, 40 minutes, answers at the end. Your results build your Finals Prep week.' : next.type === 'prep' ? 'Built from your Playoff results: a full game on a topic that cost you points.' : next.type === 'mock' ? '15 contest-style questions, a timer, answers at the end, just like the real thing.' : 'Shootaround → pregame → film room → new play → 1st half → halftime → 2nd half → clutch shot. About 20 minutes.'}</p>
         <button class="btn big go" id="start">🏀 ${doneToday ? 'Play a bonus game' : 'Tip off!'}</button>
       </div>
       ${(() => { const f = E.focusTopics(S, 1)[0]; return f && TOP[f.id] ? `<div class="card row spread"><span>🧢 <b>Coach's pick:</b> ${TOP[f.id].emoji} ${esc(TOP[f.id].name)} <span class="muted">(${esc(focusWhy(f))})</span></span><button class="btn small" id="coach" data-t="${f.id}">🎯 Practice it</button></div>` : ''; })()}
+      ${daysLeft <= 14 && S.classIdx < poIdx ? `<div class="card scoreboard" style="text-align:center"><h2 style="color:#ffd43b">🏟️ Playoff time!</h2><p>The AMC 8 is ${daysLeft} days away. Jump to the Playoffs now so your Finals Prep week fits before the real test.</p><button class="btn big go" id="toPO">Jump to the Playoffs ▶</button></div>` : ''}
       <div class="card">
         <h3>Season schedule</h3>
         <div class="map" id="map">${nodes}</div>
@@ -160,6 +163,7 @@
       </div>`);
     onHome = true;
     $('#start').onclick = () => startClass(S.classIdx);
+    if ($('#toPO')) $('#toPO').onclick = () => { if (confirm('Skip the rest of the regular season and start the Playoffs?')) { S.classIdx = poIdx; save(); home(); } };
     $('#practice').onclick = practiceGround;
     $('#studio').onclick = studioHome;
     $('#hacks').onclick = () => hacksPage();
@@ -206,7 +210,7 @@
       else if (seg.type === 'mock') steps.push({ kind: 'mock', qs: seg.questions });
       else if (seg.type === 'paper') steps.push({ kind: 'paper', year: seg.year, url: seg.url });
     }
-    P = { cls, steps, i: 0, xp: 0, right: 0, total: 0, combo: 0, bestCombo: 0, bossWin: false, t0: Date.now(), practice: !!custom, missed: [] };
+    P = { cls, steps, i: 0, xp: 0, right: 0, total: 0, combo: 0, bestCombo: 0, bossWin: false, t0: Date.now(), practice: !!custom, missed: [], skill: {} };
     clearInterval(clock);
     clock = setInterval(() => { const c = $('#clock'); if (c) c.textContent = `⏱ ${Math.floor((Date.now() - P.t0) / 60000)}m`; }, 15000);
     show();
@@ -447,10 +451,28 @@
     };
   }
 
+  // Adaptive questions are re-made at the topic's current skill, so the next question gets
+  // harder after first-try wins and easier after a miss.
+  const LEVEL_NAMES = ['', '🟢 Rookie', '🟡 Pro', '🔴 All-Star'];
   function question(s) {
-    const t = TOP[s.q.topic];
-    const label = s.seg === 'warmup' ? `Pregame warm-up ${s.n}/${s.of} · ${t.emoji} ${t.name}` : `${s.part === 2 ? '2nd' : '1st'} half · possession ${s.n}/${s.of}`;
-    askQ(s.q, { seg: s.seg, label, onDone: next });
+    const id = s.q.topic, t = TOP[id];
+    let tag = '';
+    if (s.q.adapt) {
+      const sk = P.skill[id] != null ? P.skill[id] : E.skillOf(S, id, P.cls.pass);
+      const lvl = E.levelFor(sk);
+      if (lvl !== s.q.level) s.q = Object.assign(E.makeQuestion(id, lvl, s.q.gen), { adapt: true });
+      tag = ` · ${LEVEL_NAMES[lvl]}${P.moved ? (P.moved > 0 ? ' · 📈 leveled up!' : ' · 🧱 building back up') : ''}`;
+      P.moved = 0;
+    }
+    const label = (s.seg === 'warmup' ? `Pregame warm-up ${s.n}/${s.of} · ${t.emoji} ${t.name}` : `${s.part === 2 ? '2nd' : '1st'} half · possession ${s.n}/${s.of}`) + tag;
+    askQ(s.q, { seg: s.seg, label, onDone: (correct, firstTry) => {
+      if (s.q.adapt) {
+        const before = P.skill[id] != null ? P.skill[id] : E.skillOf(S, id, P.cls.pass);
+        P.skill[id] = E.adapt(before, correct, firstTry);
+        P.moved = Math.sign(E.levelFor(P.skill[id]) - E.levelFor(before));
+      }
+      next();
+    } });
   }
 
   function brainBreak() {
@@ -505,7 +527,7 @@
   // Practice contest: no feedback until the end, like the real AMC. Unanswered = 0 points.
   function mock(s) {
     const picks = Array(s.qs.length).fill(null);
-    let cur = 0, left = 25 * 60;
+    let cur = 0, left = (P.cls.minutes || 25) * 60;
     const render = () => {
       const q = s.qs[cur];
       const nav = s.qs.map((_, i) => `<button class="btn small ${i === cur ? '' : 'ghost'}" data-j="${i}" style="min-width:42px">${picks[i] != null ? '●' : i + 1}</button>`).join('');
@@ -563,6 +585,12 @@
     const stars = pct >= 0.9 ? 3 : pct >= 0.7 ? 2 : 1;
     let earned = [];
     const before = E.levelOf(S.xp).lvl;
+    if (!P.practice) S.skill = Object.assign(S.skill || {}, P.skill);
+    if (P.cls.kind === 'playoff') {
+      const byTopic = {};
+      P.review.forEach(({ q, pick }) => { const b = (byTopic[q.topic] = byTopic[q.topic] || [0, 0]); b[1]++; if (pick === q.answer) b[0]++; });
+      S.playoff = { day: E.dayKey(), right: P.right, total: P.total, byTopic };
+    }
     if (!P.practice) earned = E.finishClass(S, P.cls, { xp: P.xp, right: P.right, total: P.total, score: P.right, bossWin: P.bossWin });
     else S.xp += P.xp;
     const win = !P.practice && earned.win;
@@ -574,7 +602,8 @@
         <details ${pick === q.answer ? '' : 'open'}><summary>${pick === q.answer ? '✅' : pick == null ? '⬜' : '❌'} ${i + 1}. ${esc(q.q)}</summary>
         <p>Your answer: <b>${pick == null ? 'skipped' : esc(pick)}</b> · Correct: <b>${esc(q.answer)}</b></p><ol class="sol">${q.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol></details>`).join('')}</div>` : '';
     h(`<div class="card" style="text-align:center">
-        <h1>${P.practice ? 'Practice complete! 🎉' : P.cls.kind === 'paper' ? `${P.right}/25 on the real AMC 8 ${P.right >= 21 ? '👑' : '🏆'}` : win ? 'FINAL: WIN! 🏆' : 'FINAL: tough loss 😤'}</h1>
+        <h1>${P.practice ? 'Practice complete! 🎉' : P.cls.kind === 'playoff' ? `Playoffs: ${P.right}/${P.total} ${P.right >= 15 ? '🏆' : '💪'}` : P.cls.kind === 'paper' ? `${P.right}/25 on the real AMC 8 ${P.right >= 21 ? '👑' : '🏆'}` : win ? 'FINAL: WIN! 🏆' : 'FINAL: tough loss 😤'}</h1>
+        ${P.cls.kind === 'playoff' ? `<p>${P.right >= 21 ? 'Honor Roll pace. Finals Prep will sharpen the last few points.' : P.right >= 15 ? 'Strong showing! Finals Prep goes after the points you dropped.' : 'Every miss tells us where the points are. Finals Prep starts there.'}</p>` : ''}
         ${P.cls.kind === 'paper' ? `<p>${P.right >= 24 ? 'Distinguished Honor Roll level!' : P.right >= 21 ? 'Honor Roll level!' : `Honor Roll was 21 in 2026: ${21 - P.right} more to go.`}</p>` : ''}
         ${P.practice ? '' : `<p class="muted">Season record ${S.wins}–${S.losses}${earned.usedTimeout ? ' · ⏸️ a timeout saved your streak!' : ''}</p>`}
         <div class="stars">${'⭐'.repeat(stars)}${'☆'.repeat(3 - stars)}</div>
@@ -585,7 +614,7 @@
         ${earned.length ? `<p style="margin-top:14px"><b>New badge${earned.length > 1 ? 's' : ''}:</b><br>${earned.map((b) => `<span class="badge">${E.BADGES[b][0]} ${E.BADGES[b][1]}</span>`).join('')}</p>` : ''}
         <p class="muted" style="margin-top:12px">${pct >= 0.9 ? 'Outstanding. You own this topic!' : pct >= 0.7 ? 'Great work. A few more reps and it sticks.' : 'Tough one! It comes back in your warm-ups so you can beat it.'}</p>
         <button class="btn big go" id="home">Back home 🏠</button>
-      </div>${nextUp()}${review}`);
+      </div>${P.cls.kind === 'playoff' ? `<div class="card"><h3>🔥 Your Finals Prep week</h3><p class="muted">Built from these results: one game a day on the topics that cost you the most points.</p><ol>${E.prepTopics(S).map((id) => { const b = S.playoff.byTopic[id]; return `<li>${TOP[id].emoji} ${esc(TOP[id].name)}${b ? ` <span class="muted">(${b[0]}/${b[1]} in the Playoffs)</span>` : ''}</li>`; }).join('')}</ol></div>` : nextUp()}${review}`);
     $('#home').onclick = home;
     bindPracticeButtons();
     if (pack) $('#open').onclick = () => { sfx.level(); confetti(60); $('#pack').innerHTML = `<div class="pack-open">${pack.em}<b>${esc(pack.label)}</b>${pack.kind ? '<span>Equip it in the Locker room</span>' : ''}</div>`; };
@@ -915,7 +944,7 @@
       if (!m || !m.r.length) return `<tr><td>${t.emoji} ${t.name}</td><td class="muted">not started</td><td></td></tr>`;
       const acc = Math.round((100 * m.r.reduce((a, b) => a + b, 0)) / m.r.length);
       const col = acc >= 80 ? 'var(--good)' : acc >= 60 ? 'var(--accent2)' : 'var(--bad)';
-      return `<tr><td>${t.emoji} ${t.name}</td><td><div class="meter"><i style="width:${acc}%;background:${col}"></i></div></td><td>${acc}% <span class="muted">(${m.r.length})</span></td></tr>`;
+      return `<tr><td>${t.emoji} ${t.name}</td><td><div class="meter"><i style="width:${acc}%;background:${col}"></i></div></td><td>${acc}% <span class="muted">(${m.r.length})</span> ${LEVEL_NAMES[E.levelFor(E.skillOf(S, id))]}</td></tr>`;
     }).join('');
     const log = S.log.slice().reverse().slice(0, 30).map((l) => `<tr><td>${l.day}</td><td>${esc(l.title)}</td><td>${l.right}/${l.total}</td><td>+${l.xp}</td></tr>`).join('');
     const weak = E.ORDER.filter((id) => S.mastery[id] && S.mastery[id].r.length >= 5 && S.mastery[id].r.reduce((a, b) => a + b, 0) / S.mastery[id].r.length < 0.6).map((id) => TOP[id].name);
@@ -924,17 +953,18 @@
     h(`<div class="card"><div class="row spread"><h2>👪 Parent page</h2><button class="btn ghost small" id="back">✕</button></div>
         <p>${esc(S.name)} has finished <b>${S.log.length}</b> classes (${S.classIdx} of ${E.buildPlan().length} in the course). Current streak <b>${S.streak}</b>, best <b>${S.bestStreak}</b>.</p>
         ${mocks.length ? `<p>Practice contests: ${mocks.map((m) => `<b>${m.right}/${m.total}</b>`).join(', ')}</p>` : ''}
+        ${S.playoff ? `<p>Playoffs: <b>${S.playoff.right}/${S.playoff.total}</b> on ${S.playoff.day}. Finals Prep topics: ${E.prepTopics(S).map((id) => TOP[id].name).join(', ')}.</p>` : ''}
         ${papers.length ? `<p>Real AMC 8 papers: ${papers.map((m) => `${esc(m.title)}: <b>${m.right}/25</b>`).join(', ')} (Honor Roll was 21 in 2026)</p>` : ''}
         ${weak.length ? `<p>⚠️ Needs work: <b>${weak.join(', ')}</b>. These come back automatically in warm-ups.</p>` : ''}
         ${(() => { const m = S.mistakes || {}, tot = Object.values(m).reduce((a, b) => a + b, 0); return tot ? `<p><b>Why answers went wrong</b> (his own tags, ${tot} total): ${Object.entries(E.MISTAKES).map(([k, [em, t]]) => `${em} ${t}: <b>${m[k] || 0}</b>`).join(' · ')}</p>` : ''; })()}
         <p>Clutch problems seen: <b>${(S.hardSeen || []).length}</b> of ${window.HARD.problems.length}.</p>
-        <p class="muted">Accuracy counts first-try answers over the last 20 questions per topic.</p>
+        <p class="muted">Accuracy counts first-try answers over the last 20 questions per topic. The level (Rookie, Pro, All-Star) is where his questions start next time: it rises with first-try answers and drops after misses.</p>
         <table><thead><tr><th>Topic</th><th>Mastery</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
       <div class="card"><h3>Recent classes</h3>${log ? `<table><thead><tr><th>Day</th><th>Class</th><th>Score</th><th>XP</th></tr></thead><tbody>${log}</tbody></table>` : '<p class="muted">None yet.</p>'}</div>
       <div class="card"><h3>Settings</h3>
         <label for="nm">Student name</label><input id="nm" value="${esc(S.name)}">
         <label for="dt">AMC 8 date</label><input id="dt" type="date" value="${S.contestDate}">
-        <label for="jump">Jump to class</label><select id="jump">${E.buildPlan().map((c, i) => `<option value="${i}" ${i === S.classIdx ? 'selected' : ''}>#${i + 1} ${c.type === 'paper' ? `🏆 Real ${c.year} AMC 8` : c.type === 'mock' ? '📝 Practice contest' : `${TOP[c.topic].name}${c.pass === 2 ? ' (Level Up)' : ''}`}</option>`).join('')}</select>
+        <label for="jump">Jump to class</label><select id="jump">${E.buildPlan().map((c, i) => `<option value="${i}" ${i === S.classIdx ? 'selected' : ''}>#${i + 1} ${c.type === 'paper' ? `🏆 Real ${c.year} AMC 8` : c.type === 'playoff' ? '🏟️ The Playoffs' : c.type === 'prep' ? `🔥 Finals Prep ${c.k + 1}` : c.type === 'mock' ? '📝 Practice contest' : `${TOP[c.topic].name}${c.pass === 2 ? ' (Level Up)' : ''}`}</option>`).join('')}</select>
         <label><input type="checkbox" id="snd" style="width:auto" ${S.sound ? 'checked' : ''}> Sound effects</label>
         <label><input type="checkbox" id="vc" style="width:auto" ${S.voice ? 'checked' : ''}> Read every slide and question aloud</label>
         <p></p><div class="row"><button class="btn" id="sv">Save</button><button class="btn ghost" id="reset">Reset all progress</button></div></div>`);
