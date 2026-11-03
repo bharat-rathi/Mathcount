@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'js');
 const ctx = vm.createContext({ console, Math, Date });
-for (const f of ['util.js', 'viz.js', 'hoops.js', 'topics-number.js', 'topics-algebra.js', 'topics-geometry.js', 'topics-logic.js', 'topics-counting.js', 'topics-visual.js', 'hard.js', 'hard-diagrams.js', 'studio-counting.js', 'studio-geometry.js', 'studio-algebra.js', 'studio-number-theory.js', 'studio-arithmetic.js', 'studio-logic.js', 'arcade.js', 'arcade-zombies.js', 'arcade-racer.js', 'arcade-buzzer.js', 'engine.js']) {
+for (const f of ['util.js', 'viz.js', 'hoops.js', 'topics-number.js', 'topics-algebra.js', 'topics-geometry.js', 'topics-logic.js', 'topics-counting.js', 'topics-visual.js', 'hard.js', 'hard-diagrams.js', 'studio-counting.js', 'studio-geometry.js', 'studio-algebra.js', 'studio-number-theory.js', 'studio-arithmetic.js', 'studio-logic.js', 'arcade.js', 'arcade-zombies.js', 'arcade-racer.js', 'arcade-buzzer.js', 'arcade-towers.js', 'engine.js']) {
   vm.runInContext(fs.readFileSync(path.join(dir, f), 'utf8'), ctx, { filename: f });
 }
 const { TOPICS, Engine, U, CLIPS, Arcade } = ctx;
@@ -194,6 +194,18 @@ for (const [name, make] of Object.entries(Arcade.RACER_RULES)) {
     else if (Math.abs(numOf(p.answer) - exact) > 1e-6) fail(`racer ${p.text}: answer ${p.answer} but formula gives ${exact}`);
   }
 }
+
+// Tower Builder: 4 different choices including the answer, a picture, and an answer that agrees
+// with an independent formula (π answers compare the coefficient of π).
+for (const [name, make] of Object.entries(Arcade.TOWER_RULES)) {
+  for (let k = 0; k < 500; k++) {
+    const p = make(), c = p.choices;
+    if (c.length !== 4 || new Set(c).size !== 4 || !c.includes(p.answer) || !/^<svg/.test(p.svg) || [p.text, p.why, p.svg, ...c].some(bad)) { fail(`tower ${name}: ${p.text} → ${p.answer} [${c}]`); continue; }
+    const exact = Function(`return ${p.expr}`)(), got = Number(p.answer.replace('π', ''));
+    if (Math.abs(got - exact) > 1e-9 || p.pi !== p.answer.endsWith('π') && p.pi) fail(`tower ${name}: answer ${p.answer} but formula gives ${exact}`);
+  }
+}
+if (Arcade.TOWER_TIERS.slice(1).some((t) => t.some((id) => !Arcade.TOWER_RULES[id]))) fail('tower tier uses an unknown problem');
 
 if (Arcade.BUZZER_MISSIONS.some((m) => !Arcade.ZOMBIE_RULES[m.id])) fail('buzzer mission without a question maker');
 if (Arcade.MISSIONS.some((m) => m.rules.some((r) => !Arcade.RULES[r]))) fail('blaster mission uses an unknown rule');

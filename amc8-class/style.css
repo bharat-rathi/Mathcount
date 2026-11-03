@@ -257,3 +257,19 @@ details.chap summary::before { content: '▸ '; } details.chap[open] summary::be
 .bb-shot { background: var(--card); border: 3px solid var(--accent3); border-radius: 14px; padding: 8px; text-align: center; font-size: 22px; font-weight: 800; min-height: 64px; }
 .bb-shot.three { border-color: var(--accent); }
 .bb-shot small { display: block; font-size: 12px; color: var(--muted); letter-spacing: 1px; }
+
+/* Tower Builder */
+.tw-modal { position: absolute; inset: 0; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; padding: 10px; }
+.tw-modal[hidden] { display: none; }
+.tw-card { background: var(--card); color: var(--ink); border-radius: 18px; padding: 14px; width: 100%; max-width: 420px; max-height: 100%; overflow: auto; box-shadow: var(--shadow); }
+.tw-ch { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.tw-ch .btn { font-size: 18px; }
+.tw-bar { display: flex; gap: 10px; align-items: center; justify-content: space-between; margin-top: 10px; }
+.tw-bar span { color: var(--muted); font-size: 15px; }
+svg.tq { width: 100%; max-height: 190px; background: var(--empty); border-radius: 12px; }
+svg.tq text { fill: var(--ink); font: 800 15px system-ui, sans-serif; }
+svg.tq .f0 { fill: color-mix(in srgb, var(--accent2) 30%, transparent); stroke: var(--ink); stroke-width: 2; }
+svg.tq .f1 { fill: color-mix(in srgb, var(--accent3) 45%, transparent); stroke: var(--ink); stroke-width: 2; }
+svg.tq .f2 { fill: color-mix(in srgb, var(--accent) 35%, transparent); stroke: var(--ink); stroke-width: 2; }
+svg.tq .ln { stroke: var(--ink); stroke-width: 3; }
+svg.tq .dash { stroke: var(--ink); stroke-width: 2; stroke-dasharray: 5 5; }
