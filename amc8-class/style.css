@@ -225,3 +225,15 @@ details.chap summary::before { content: '▸ '; } details.chap[open] summary::be
 .tabs { display: flex; gap: 6px; background: var(--empty); border-radius: 16px; padding: 5px; margin-bottom: 14px; }
 .tab { flex: 1; border: 0; border-radius: 12px; padding: 10px; font: inherit; font-weight: 800; background: transparent; color: var(--muted); cursor: pointer; }
 .tab.on { background: var(--card); color: var(--ink); box-shadow: var(--shadow); }
+
+/* Asteroid Blaster */
+.ab { position: relative; border-radius: 18px; overflow: hidden; box-shadow: var(--shadow); touch-action: none; user-select: none; }
+.ab canvas { display: block; width: 100%; cursor: crosshair; }
+.ab-hud { position: absolute; top: 0; left: 0; right: 0; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 8px; padding: 10px 12px; color: #fff; font-weight: 800; font-size: 16px; background: linear-gradient(rgba(0,0,0,.55), transparent); pointer-events: none; }
+.ab-hud button { pointer-events: auto; background: rgba(255,255,255,.15); color: #fff; border: 0; border-radius: 10px; padding: 4px 10px; font-size: 16px; cursor: pointer; margin-left: 8px; }
+.ab-right { white-space: nowrap; margin-left: auto; }
+#ab-banner { flex: 1 1 100%; color: #ffd43b; }
+.ab-msg { position: absolute; inset: 35% 0 auto; text-align: center; color: #fff; opacity: 0; transform: scale(.8); transition: .25s; pointer-events: none; text-shadow: 0 3px 12px rgba(0,0,0,.6); }
+.ab-msg.on { opacity: 1; transform: none; }
+.ab-msg b { display: block; font-size: 42px; letter-spacing: 2px; color: #ffd43b; }
+.ab-msg span { font-size: 20px; font-weight: 700; }

@@ -118,11 +118,11 @@
 
   // ── Home
   // Tabs across the top of both home screens.
-  const tabBar = (cur) => `<div class="tabs"><button class="tab ${cur === 'amc' ? 'on' : ''}" id="tabAmc">🏀 AMC 8</button><button class="tab ${cur === 'mc' ? 'on' : ''}" id="tabMc">🏅 MATHCOUNTS</button></div>`;
-  const bindTabs = () => { $('#tabAmc').onclick = home; $('#tabMc').onclick = () => mcWait(mcHome); };
+  const tabBar = (cur) => `<div class="tabs"><button class="tab ${cur === 'amc' ? 'on' : ''}" id="tabAmc">🏀 AMC 8</button><button class="tab ${cur === 'mc' ? 'on' : ''}" id="tabMc">🏅 MATHCOUNTS</button><button class="tab ${cur === 'arc' ? 'on' : ''}" id="tabArc">🎮 Arcade</button></div>`;
+  const bindTabs = () => { $('#tabAmc').onclick = home; $('#tabMc').onclick = () => mcWait(mcHome); $('#tabArc').onclick = arcadeHome; };
 
   function home() {
-    clearTimers(); clearInterval(clock); keyHandler = null; applyCourt();
+    stopGame(); clearTimers(); clearInterval(clock); keyHandler = null; applyCourt();
     if (!S.name) return welcome();
     const plan = E.buildPlan();
     const next = plan[S.classIdx];
@@ -924,6 +924,45 @@
         ${ev.badges.length ? `<p><b>New badges:</b><br>${ev.badges.map((b) => `<span class="badge">${b.icon} ${esc(b.name)}</span>`).join('')}</p>` : ''}
         <div class="grid2" style="margin-top:12px"><button class="btn go" id="mh">🏅 MATHCOUNTS home</button><button class="btn ghost" id="hm">🏀 Back to Math Hoops</button></div></div>`);
     $('#mh').onclick = mcHome; $('#hm').onclick = home;
+  }
+
+  // ── 🎮 Arcade (js/arcade.js): math action games. Asteroid Blaster first.
+  let game = null;
+  const stopGame = () => { if (game) { game.stop(); game = null; } };
+  function arcadeHome() {
+    stopGame(); clearTimers(); keyHandler = null;
+    const A = S.arcade || { best: {}, plays: 0 };
+    h(`${tabBar('arc')}<div class="card court"><h1>🚀 Asteroid Blaster</h1>
+        <p style="margin:0">Number asteroids are falling! Blast <b>only</b> the ones that match the rule. A wrong shot or a target that slips past costs a 🛡️ shield. Lose all 3 and it's game over.</p>
+        <p class="muted" style="margin:8px 0 0">Click or tap an asteroid to fire · P to pause · 5 in a row = bonus points</p></div>
+      <div class="card"><h3>Pick a mission</h3><div class="clips">${window.Arcade.MISSIONS.map((m) => `<button class="clip" data-m="${m.id}"><span class="cem">${m.emoji}</span><b>${m.name}</b><small>${A.best[m.id] ? `🏆 best ${A.best[m.id]}` : 'not played yet'}</small></button>`).join('')}</div></div>`);
+    bindTabs();
+    app.querySelectorAll('[data-m]').forEach((b) => (b.onclick = () => playBlaster(b.dataset.m)));
+  }
+  function playBlaster(mission) {
+    stopGame(); keyHandler = null;
+    h(`<div class="row spread" style="margin-bottom:8px"><button class="btn ghost small" id="x">✕ Quit</button><span class="muted">🚀 Asteroid Blaster</span></div><div id="arena"></div>`);
+    $('#x').onclick = arcadeHome;
+    game = window.Arcade.start($('#arena'), mission, { sound: S.sound, onEnd: (r) => blasterDone(r) });
+  }
+  function blasterDone(r) {
+    stopGame();
+    const A = (S.arcade = S.arcade || { best: {}, plays: 0 });
+    const prev = A.best[r.mission] || 0, record = r.score > prev;
+    if (record) A.best[r.mission] = r.score;
+    A.plays++;
+    S.secs = (S.secs || 0) + Math.min(3600, r.seconds);
+    S.xp += Math.round(r.score / 100);
+    const m = window.Arcade.MISSIONS.find((x) => x.id === r.mission);
+    save({ day: E.dayKey(), title: `🚀 Asteroid Blaster: ${m.name}`, kind: 'arcade', right: r.hits, total: r.shots, xp: r.score, secs: r.seconds });
+    if (record) confetti(120); sfx.level();
+    h(`<div class="card scoreboard" style="text-align:center"><h1 style="color:#ffd43b">${record ? '🏆 NEW HIGH SCORE!' : 'GAME OVER'}</h1>
+        <h2 style="color:#fff">⭐ ${r.score}</h2><p>Wave ${r.wave} · ${r.accuracy}% accurate · best streak ${r.bestCombo}${record ? '' : ` · your best: ${prev}`}</p></div>
+      ${r.mistakes.length ? `<div class="card"><h3>🧠 Learn from the last ones</h3>${r.mistakes.map((x) => `<p><b>${esc(x.text)}</b> ${x.kind === 'missed' ? 'slipped past' : 'was the wrong target'} for "${esc(x.rule)}": ${esc(x.why)}</p>`).join('')}</div>` : ''}
+      <div class="card"><div class="grid2"><button class="btn big go" id="again">🚀 Play again</button><button class="btn ghost" id="missions">Pick another mission</button></div></div>`);
+    $('#again').onclick = () => playBlaster(r.mission);
+    $('#missions').onclick = arcadeHome;
+    keyHandler = (e) => { if (e.key === 'Enter') playBlaster(r.mission); };
   }
 
   // ── Practice Ground: any topic, any time, at the difficulty he picks. Nothing here changes the
