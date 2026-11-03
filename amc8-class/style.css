@@ -273,3 +273,26 @@ svg.tq .f1 { fill: color-mix(in srgb, var(--accent3) 45%, transparent); stroke: 
 svg.tq .f2 { fill: color-mix(in srgb, var(--accent) 35%, transparent); stroke: var(--ink); stroke-width: 2; }
 svg.tq .ln { stroke: var(--ink); stroke-width: 3; }
 svg.tq .dash { stroke: var(--ink); stroke-width: 2; stroke-dasharray: 5 5; }
+
+/* Probability Heist */
+.hb { position: relative; }
+.hb-hud { display: flex; justify-content: space-between; font-weight: 800; font-size: 18px; margin-bottom: 6px; }
+#hb-cv { display: block; width: 100%; border-radius: 14px; }
+.hb-timer { height: 8px; background: var(--empty); border-radius: 99px; overflow: hidden; margin: 8px 0; }
+.hb-timer i { display: block; height: 100%; background: #fcc419; transition: width .1s linear; }
+.hb-ask { font-size: 19px; font-weight: 700; margin: 6px 0 10px; }
+.hb-vaults { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.hb-vault { display: flex; flex-direction: column; align-items: center; gap: 6px; background: #2b2f3a; color: #fff; border: 3px solid #868e96; border-radius: 16px; padding: 8px 6px; font: inherit; font-size: 14px; cursor: pointer; min-height: 170px; }
+.hb-vault:hover:not(:disabled) { border-color: #fcc419; transform: translateY(-2px); }
+.hb-vault.open { border-color: #51cf66; background: #2b3a2f; }
+.hb-vault.wrong { border-color: #fa5252; }
+.hb-door { font-weight: 800; font-size: 16px; }
+.hb-lbl { line-height: 1.3; }
+.hb-big { font-size: 34px; }
+.hb-bag { display: flex; flex-wrap: wrap; gap: 3px; justify-content: center; max-width: 90px; }
+.hb-dot { width: 14px; height: 14px; border-radius: 50%; background: #adb5bd; display: inline-block; }
+.hb-dot.gold { background: #fcc419; }
+.hb-spin { width: 64px; height: 64px; border-radius: 50%; border: 3px solid #fff; }
+.hb .ab-msg { inset: 42px 0 auto; }
+.hb .ab-msg b { font-size: 32px; }
+.hb .ab-msg span { font-size: 14px; }
