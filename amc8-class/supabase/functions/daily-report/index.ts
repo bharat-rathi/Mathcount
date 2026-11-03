@@ -14,6 +14,7 @@ Deno.serve(async (req) => {
   if (error) return new Response(error.message, { status: 500 });
 
   const sent: string[] = [];
+  const failed: { to: string[]; status: number; error: string }[] = [];
   for (const s of settings ?? []) {
     const { date, hour } = localNow(s.timezone || 'America/New_York');
     if (hour !== s.send_hour || !s.email_to?.length) continue;
@@ -26,6 +27,9 @@ Deno.serve(async (req) => {
       body: JSON.stringify({ from: Deno.env.get('EMAIL_FROM'), to: s.email_to, subject: mail.subject, text: mail.text }),
     });
     if (res.ok) sent.push(s.parent_id);
+    // Keep Resend's reason (e.g. an unverified sender or recipient) so the cron log shows it.
+    else failed.push({ to: s.email_to, status: res.status, error: (await res.text()).slice(0, 300) });
   }
-  return Response.json({ sent: sent.length });
+  if (failed.length) console.error('daily-report failures', JSON.stringify(failed));
+  return Response.json({ sent: sent.length, failed });
 });
