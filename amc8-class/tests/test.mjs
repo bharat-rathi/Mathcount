@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'js');
 const ctx = vm.createContext({ console, Math, Date });
-for (const f of ['util.js', 'viz.js', 'hoops.js', 'topics-number.js', 'topics-algebra.js', 'topics-geometry.js', 'topics-logic.js', 'topics-counting.js', 'topics-visual.js', 'hard.js', 'hard-diagrams.js', 'studio-counting.js', 'studio-geometry.js', 'studio-algebra.js', 'studio-number-theory.js', 'studio-arithmetic.js', 'studio-logic.js', 'arcade.js', 'arcade-zombies.js', 'arcade-racer.js', 'arcade-buzzer.js', 'arcade-towers.js', 'engine.js']) {
+for (const f of ['util.js', 'viz.js', 'hoops.js', 'topics-number.js', 'topics-algebra.js', 'topics-geometry.js', 'topics-logic.js', 'topics-counting.js', 'topics-visual.js', 'hard.js', 'hard-diagrams.js', 'studio-counting.js', 'studio-geometry.js', 'studio-algebra.js', 'studio-number-theory.js', 'studio-arithmetic.js', 'studio-logic.js', 'arcade.js', 'arcade-zombies.js', 'arcade-racer.js', 'arcade-buzzer.js', 'arcade-towers.js', 'arcade-heist.js', 'engine.js']) {
   vm.runInContext(fs.readFileSync(path.join(dir, f), 'utf8'), ctx, { filename: f });
 }
 const { TOPICS, Engine, U, CLIPS, Arcade } = ctx;
@@ -206,6 +206,24 @@ for (const [name, make] of Object.entries(Arcade.TOWER_RULES)) {
   }
 }
 if (Arcade.TOWER_TIERS.slice(1).some((t) => t.some((id) => !Arcade.TOWER_RULES[id]))) fail('tower tier uses an unknown problem');
+
+// Probability Heist: recount every vault's odds from its setup; the answer must be the single
+// best vault. Lock problems: 4 different choices and an answer that matches its formula.
+const recount = (o) => {
+  const p = o.params;
+  if (o.kind === 'bag' || o.kind === 'spinner') return [p.g, p.n];
+  if (o.kind === 'die') { const f = { atleast: (d) => d >= p.k, even: (d) => d % 2 === 0, prime: (d) => [2, 3, 5].includes(d), mult3: (d) => d % 3 === 0 }[p.t]; return [[1, 2, 3, 4, 5, 6].filter(f).length, 6]; }
+  if (o.kind === 'coins') { let g = 0; for (let m = 0; m < 2 ** p.n; m++) { const h = m.toString(2).split('').filter((c) => c === '1').length; if (p.t === 'all' ? h === p.n : p.t === 'atleast1' ? h >= 1 : h === 1) g++; } return [g, 2 ** p.n]; }
+  let g = 0; for (let a = 1; a <= 6; a++) for (let b = 1; b <= 6; b++) if (a + b === p.s) g++; return [g, 36];
+};
+for (let level = 1; level <= 5; level++) for (let k = 0; k < 400; k++) {
+  const q = Arcade.HEIST_RULES.vaults(level);
+  const odds = q.options.map((o) => { const [g, t] = recount(o); if (g !== o.good || t !== o.total) fail(`heist ${o.kind} ${JSON.stringify(o.params)}: says ${o.good}/${o.total}, really ${g}/${t}`); return g / t; });
+  const best = Math.max(...odds);
+  if (odds.indexOf(best) !== q.answer || odds.filter((x) => x === best).length !== 1 || !q.why) fail(`heist vaults L${level}: answer ${q.answer} but odds ${odds}`);
+  const l = Arcade.HEIST_RULES.lock(level);
+  if (l.choices.length !== 4 || new Set(l.choices).size !== 4 || !l.choices.includes(l.answer) || Function(`return ${l.expr}`)() !== l.answer || bad(l.why)) fail(`heist lock: ${l.text} → ${l.answer} [${l.choices}]`);
+}
 
 if (Arcade.BUZZER_MISSIONS.some((m) => !Arcade.ZOMBIE_RULES[m.id])) fail('buzzer mission without a question maker');
 if (Arcade.MISSIONS.some((m) => m.rules.some((r) => !Arcade.RULES[r]))) fail('blaster mission uses an unknown rule');
