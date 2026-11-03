@@ -6,10 +6,10 @@ import { fileURLToPath } from 'node:url';
 
 const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'js');
 const ctx = vm.createContext({ console, Math, Date });
-for (const f of ['util.js', 'viz.js', 'hoops.js', 'topics-number.js', 'topics-algebra.js', 'topics-geometry.js', 'topics-logic.js', 'topics-counting.js', 'topics-visual.js', 'hard.js', 'hard-diagrams.js', 'studio-counting.js', 'studio-geometry.js', 'studio-algebra.js', 'studio-number-theory.js', 'studio-arithmetic.js', 'studio-logic.js', 'engine.js']) {
+for (const f of ['util.js', 'viz.js', 'hoops.js', 'topics-number.js', 'topics-algebra.js', 'topics-geometry.js', 'topics-logic.js', 'topics-counting.js', 'topics-visual.js', 'hard.js', 'hard-diagrams.js', 'studio-counting.js', 'studio-geometry.js', 'studio-algebra.js', 'studio-number-theory.js', 'studio-arithmetic.js', 'studio-logic.js', 'arcade.js', 'engine.js']) {
   vm.runInContext(fs.readFileSync(path.join(dir, f), 'utf8'), ctx, { filename: f });
 }
-const { TOPICS, Engine, U, CLIPS } = ctx;
+const { TOPICS, Engine, U, CLIPS, Arcade } = ctx;
 
 let failures = 0;
 const fail = (msg) => { failures++; if (failures < 40) console.error('FAIL', msg); };
@@ -142,6 +142,30 @@ const old = Object.assign(Engine.newState(), { planVersion: 1, log: [
   { kind: 'lesson', title: `${TOPICS.find((x) => x.id === 'angles').emoji} ${TOPICS.find((x) => x.id === 'angles').name}` }] });
 Engine.migratePlan(old);
 if (old.classIdx !== 2 || old.planVersion !== Engine.PLAN_VERSION) fail(`migration put him at ${old.classIdx}`);
+
+// Asteroid Blaster: every rule, at every level, makes targets and decoys whose 'ok' is right
+// (checked independently here) and that come with an explanation.
+const gcdT = (a, b) => (b ? gcdT(b, a % b) : a);
+const primeT = (n) => n > 1 && [...Array(Math.floor(Math.sqrt(n)) + 1).keys()].slice(2).every((d) => n % d);
+for (const [name, make] of Object.entries(Arcade.RULES)) {
+  for (let level = 1; level <= 5; level++) for (let w = 0; w < 20; w++) {
+    const rule = make(level);
+    for (let k = 0; k < 20; k++) {
+      const good = k % 2 === 0, it = rule.item(good);
+      if (it.ok !== good || !it.why || bad(it.text) || bad(it.why)) { fail(`blaster ${name} L${level}: ${it.text} ok=${it.ok} want ${good} (${rule.banner})`); continue; }
+      const n = Number(it.text), m = rule.banner.match(/(\d+)/), x = m && Number(m[1]);
+      let truth = null;
+      if (name === 'multiples') truth = n % x === 0;
+      else if (name === 'factors') truth = x % n === 0;
+      else if (name === 'primes') truth = primeT(n);
+      else if (name === 'squares') truth = /CUBES/.test(rule.banner) ? Math.round(Math.cbrt(n)) ** 3 === n : Math.round(Math.sqrt(n)) ** 2 === n;
+      else if (name === 'fractions') { const [a, b] = it.text.split('/').map(Number), [p, q] = rule.banner.match(/(\d+)\/(\d+)/).slice(1).map(Number); truth = a * q === b * p; }
+      else if (name === 'percents') { const v = it.text.includes('/') ? it.text.split('/').reduce((a, b) => a / b) : Number(it.text); truth = Math.abs(v * 100 - x) < 1e-9; }
+      if (truth !== good) fail(`blaster ${name} L${level}: ${it.text} is really ${truth} for "${rule.banner}"`);
+    }
+  }
+}
+if (Arcade.MISSIONS.some((m) => m.rules.some((r) => !Arcade.RULES[r]))) fail('blaster mission uses an unknown rule');
 
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 // Concept Studio clips: unique ids, a real topic, frames with a picture and a sentence, and a
