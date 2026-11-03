@@ -29,6 +29,7 @@
     classIdx: S.classIdx, totalClasses: E.buildPlan().length, streak: S.streak, bestStreak: S.bestStreak,
     xp: S.xp, level: E.levelOf(S.xp).lvl, badges: S.badges,
     recent: S.log.slice(-14), mistakes: S.mistakes || {}, minutes: Math.round((S.secs || 0) / 60), clips: (S.clips || []).length,
+    mathcounts: S.mc ? { xp: S.mc.xp, streak: S.mc.streaks.day.current, answered: Object.values(S.mc.topics).reduce((a, t) => a + t.attempts, 0) } : null,
     mastery: Object.fromEntries(Object.entries(S.mastery).filter(([, m]) => m.r.length).map(([id, m]) =>
       [TOP[id].name, { pct: Math.round((100 * m.r.reduce((a, b) => a + b, 0)) / m.r.length), n: m.r.length }])),
   });
@@ -110,6 +111,10 @@
   document.addEventListener('keydown', (e) => { if (keyHandler && !e.target.matches('input, select')) keyHandler(e); });
 
   // ── Home
+  // Tabs across the top of both home screens.
+  const tabBar = (cur) => `<div class="tabs"><button class="tab ${cur === 'amc' ? 'on' : ''}" id="tabAmc">🏀 AMC 8</button><button class="tab ${cur === 'mc' ? 'on' : ''}" id="tabMc">🏅 MATHCOUNTS</button></div>`;
+  const bindTabs = () => { $('#tabAmc').onclick = home; $('#tabMc').onclick = () => mcWait(mcHome); };
+
   function home() {
     clearTimers(); clearInterval(clock); keyHandler = null; applyCourt();
     if (!S.name) return welcome();
@@ -126,7 +131,7 @@
       const em = c.type === 'paper' ? '🏆' : c.type === 'playoff' ? '🏟️' : c.type === 'prep' ? '🔥' : c.type === 'mock' ? '📝' : TOP[c.topic].emoji;
       return `<div class="node ${cls} ${c.type === 'lesson' ? '' : 'mock'}" title="${c.type === 'paper' ? `Real ${c.year} AMC 8` : c.type === 'playoff' ? 'The Playoffs' : c.type === 'prep' ? 'Finals Prep' : c.type === 'mock' ? 'Practice contest' : esc(TOP[c.topic].name)}">${i < S.classIdx ? '✅' : em}<small>${i + 1}</small></div>`;
     }).join('');
-    h(`
+    h(`${tabBar('amc')}
       <div class="card court">
         <div class="hero">
           <div class="avatar">${jerseySvg()}</div>
@@ -152,6 +157,7 @@
         <div class="map" id="map">${nodes}</div>
       </div>
       <div class="grid2">
+        <button class="btn ghost" id="mc">🏅 MATHCOUNTS</button>
         <button class="btn ghost" id="studio">🎬 Concept Studio</button>
         <button class="btn ghost" id="practice">🎯 Practice Ground</button>
         <button class="btn ghost" id="hacks">🧰 Test Hacks</button>
@@ -163,9 +169,11 @@
       </div>`);
     onHome = true;
     $('#start').onclick = () => startClass(S.classIdx);
+    bindTabs();
     if ($('#toPO')) $('#toPO').onclick = () => { if (confirm('Skip the rest of the regular season and start the Playoffs?')) { S.classIdx = poIdx; save(); home(); } };
     $('#practice').onclick = practiceGround;
     $('#studio').onclick = studioHome;
+    $('#mc').onclick = () => mcWait(mcHome);
     $('#hacks').onclick = () => hacksPage();
     if ($('#coach')) $('#coach').onclick = () => startPractice($('#coach').dataset.t);
     $('#badges').onclick = badgesPage;
@@ -809,7 +817,107 @@
     if (more) $('#more').onclick = () => playClip(more);
     $('#again').onclick = () => playClip(c);
     $('#studio').onclick = studioHome;
+    $('#mc').onclick = () => mcWait(mcHome);
     bindPracticeButtons();
+  }
+
+  // ── MATHCOUNTS: the Mathlete Daily Coach (lib/, shared with this repo's Chrome extension).
+  // Free-response problems like the real Sprint and Target rounds, 10 a day picked for weak
+  // topics, every miss explained. Its state is kept in S.mc.
+  let mcT0 = 0;
+  const mcState = () => {
+    if (!S.mc) S.mc = window.MC.newState();
+    S.mc.profile.name = S.name;
+    return S.mc;
+  };
+  const mcSave = (game) => {
+    const m = S.mc;
+    if (m.log.length > 600) m.log.splice(0, m.log.length - 600);
+    save(game);
+  };
+  function mcWait(then) {
+    if (window.MC) return then();
+    h('<div class="card"><p>Loading MATHCOUNTS…</p></div>');
+    window.addEventListener('mc-ready', then, { once: true });
+  }
+
+  function mcHome() {
+    clearTimers(); keyHandler = null;
+    const M = window.MC, st = mcState(), today = M.dateKey();
+    const rank = M.rankFor(st.xp), streak = M.liveDayStreak(st, today), day = st.days[today];
+    const open = st.session && !st.session.finished && st.session.date === today;
+    const weak = M.weakestTopics(st, 3);
+    const topics = M.TOPICS.map((t) => { const x = st.topics[t.id]; const tier = M.topicTier(st, t.id);
+      return `<div class="prow"><span class="pname">${t.icon} ${esc(t.name)}</span><span class="pill">${x ? '★'.repeat(x.level) + '☆'.repeat(3 - x.level) : '🆕'}</span>${tier ? `<span>${M.TIERS[tier].icon}</span>` : ''}</div>`; }).join('');
+    h(`${tabBar('mc')}<div class="card court"><h1>🏅 MATHCOUNTS</h1>
+        <p class="muted" style="margin:0">Sprint & Target round practice: type your answer, like the real thing.</p>
+        <div class="row" style="margin:10px 0"><span class="pill">${rank.icon} ${esc(rank.name)}</span><span class="pill">🔥 ${streak}-day streak</span><span class="pill">⭐ ${st.xp} XP</span></div>
+        ${rank.next ? `<div class="xpbar"><i style="width:${Math.round(100 * rank.progress)}%"></i></div><p class="muted" style="margin:4px 0 0;font-size:14px">${rank.next.xp - st.xp} XP to ${esc(rank.next.name)}</p>` : ''}</div>
+      <div class="card"><span class="tag">${day && day.completed ? `Done today: ${day.correct}/${day.total}` : "Today's set"}</span>
+        <h2>${open ? `Keep going: question ${st.session.index + 1} of ${st.session.questions.length}` : day && day.completed ? 'Bonus round: 5 more on your weakest topics' : 'Daily 10'}</h2>
+        <p class="muted">${day && day.completed && !open ? 'Your daily 10 is done. Want more?' : '10 problems picked for you, easiest first. Topics you missed recently come back with new numbers.'}</p>
+        <button class="btn big go" id="go">${open ? 'Continue ▶' : day && day.completed ? '🎯 Bonus 5' : '🏅 Start the daily 10'}</button></div>
+      ${weak.length ? `<div class="card"><h3>🧢 Work on next</h3><p>${weak.map((w) => `${w.topic.icon} ${esc(w.topic.name)} <span class="muted">(${Math.round(100 * w.s.mastery)}%)</span>`).join(' · ')}</p></div>` : ''}
+      <details class="card chap"><summary><h3 style="display:inline">Topics and levels</h3></summary>${topics}</details>
+      <p class="muted" style="text-align:center;font-size:14px">Not affiliated with or endorsed by MATHCOUNTS®.</p>`);
+    bindTabs();
+    $('#go').onclick = () => {
+      if (!open) M.startSession(st, today, day && day.completed ? 'extra' : 'daily');
+      mcT0 = Date.now(); st.session.questionStartedAt = Date.now();
+      mcSave(); mcQuestion();
+    };
+  }
+
+  function mcQuestion() {
+    const M = window.MC, st = S.mc, s = st.session, q = s.questions[s.index], t = M.TOPIC_BY_ID[q.topicId];
+    const dots = s.questions.map((_, i) => `<i class="${i < s.index ? 'on' : i === s.index ? 'cur' : ''}"></i>`).join('');
+    h(`<div class="topbar"><button class="btn ghost small" id="x" aria-label="Back">✕</button><div class="steps">${dots}</div><span class="pill">${s.index + 1}/${s.questions.length}</span></div>
+      <span class="tag">${t.icon} ${esc(t.name)} · Level ${'★'.repeat(q.level)}${'☆'.repeat(3 - q.level)}${q.review ? ' · 🔁 comeback problem' : ''}</span>
+      <div class="card" id="qc"><div class="qtext">${q.q}</div>
+        ${q.form ? `<p class="muted">Express your answer ${q.form.startsWith('in ') ? '' : 'as a '}${esc(q.form)}.</p>` : ''}
+        <form id="af" class="row" autocomplete="off"><input id="ans" inputmode="text" style="flex:1;min-width:140px;font-size:22px" placeholder="Your answer">${q.unit ? `<b>${esc(q.unit)}</b>` : ''}<button class="btn go" id="sub">Check ✔</button></form>
+        <div class="row" id="keys" style="margin-top:8px">${['/', '√', 'π', '-', '^'].map((k) => `<button type="button" class="btn ghost small" data-ins="${k}">${k === '/' ? 'a/b' : k === '-' ? '−' : k}</button>`).join('')}<span class="muted" style="font-size:14px">3/4 · 5√3 · 16π</span></div>
+        <div id="fb"></div></div>`);
+    autoSpeak(plain(q.q.replace(/<[^>]+>/g, ' ')));
+    const inp = $('#ans');
+    setTimeout(() => inp.focus(), 30);
+    $('#x').onclick = mcHome;
+    app.querySelectorAll('[data-ins]').forEach((b) => (b.onclick = () => { const p = inp.selectionStart ?? inp.value.length; inp.value = inp.value.slice(0, p) + b.dataset.ins + inp.value.slice(p); inp.focus(); inp.setSelectionRange(p + 1, p + 1); }));
+    $('#af').onsubmit = (e) => {
+      e.preventDefault();
+      const raw = inp.value.trim(); if (!raw || s.results[s.index]) return;
+      const { result, events } = M.gradeCurrent(st, raw);
+      inp.disabled = true; $('#sub').disabled = true; $('#keys').remove();
+      if (result.correct) { sfx.good(); swish(); if (events.xp) floater(`+${events.xp}`, $('#qc')); } else { sfx.bad(); $('#qc').classList.add('shake'); }
+      const last = s.index === s.questions.length - 1;
+      $('#fb').innerHTML = `<div class="feedback ${result.correct ? 'good' : 'bad'}">${result.correct ? `✅ Swish! ${st.streaks.correct.current >= 3 ? `🎯 ${st.streaks.correct.current} in a row!` : ''}` : `❌ Not quite. You said <b>${esc(result.raw)}</b>; the answer is <b>${esc(result.answerText)}${q.unit && q.unit !== '$' ? ' ' + esc(q.unit) : ''}</b>.${result.why.map((w) => `<p>${w}</p>`).join('')}`}
+          ${result.correct ? `<details><summary>See the solution</summary><ol class="sol">${q.steps.map((x) => `<li>${x}</li>`).join('')}</ol></details>` : `<p><b>🪜 Simplest way to solve it</b></p><ol class="sol">${q.steps.map((x) => `<li>${x}</li>`).join('')}</ol>`}
+          ${q.tip ? `<p>💡 ${q.tip}</p>` : ''}</div>
+        ${events.levelUp ? `<p><b>⬆️ Level up!</b> ${esc(M.TOPIC_BY_ID[events.levelUp.topicId].name)} is now ${'★'.repeat(events.levelUp.level)}</p>` : ''}
+        ${events.badges.map((b) => `<span class="badge">${b.icon} ${esc(b.name)}</span>`).join('')}
+        <p></p><button class="btn big" id="nx">${last ? 'See results 🏁' : 'Next ▶'}</button>`;
+      if (events.badges.length) confetti(80);
+      mcSave();
+      $('#nx').onclick = mcNext; $('#nx').focus({ preventScroll: true });
+      keyHandler = (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); mcNext(); } };
+    };
+  }
+
+  function mcNext() {
+    keyHandler = null;
+    const M = window.MC, st = S.mc;
+    if (!M.advance(st)) { mcSave(); return mcQuestion(); }
+    const ev = M.finishSession(st), s = st.session;
+    const secs = Math.min(3600, Math.round((Date.now() - (mcT0 || s.startedAt)) / 1000));
+    S.secs = (S.secs || 0) + secs;
+    mcSave({ day: s.date, title: s.kind === 'daily' ? '🏅 MATHCOUNTS Daily 10' : '🏅 MATHCOUNTS Bonus', kind: 'mathcounts', right: ev.correct, total: ev.total, xp: ev.xp, secs });
+    confetti(ev.perfect ? 140 : 60); sfx.level();
+    h(`<div class="card" style="text-align:center"><h1>${ev.perfect ? 'Perfect set! ✨' : 'Set complete! 🏅'}</h1>
+        <h2>${ev.correct} / ${ev.total} correct</h2>
+        <div class="grid2"><div class="stat"><b>+${ev.xp}</b>bonus XP</div><div class="stat"><b>🔥 ${M.liveDayStreak(st, s.date)}</b>day streak</div></div>
+        ${ev.badges.length ? `<p><b>New badges:</b><br>${ev.badges.map((b) => `<span class="badge">${b.icon} ${esc(b.name)}</span>`).join('')}</p>` : ''}
+        <div class="grid2" style="margin-top:12px"><button class="btn go" id="mh">🏅 MATHCOUNTS home</button><button class="btn ghost" id="hm">🏀 Back to Math Hoops</button></div></div>`);
+    $('#mh').onclick = mcHome; $('#hm').onclick = home;
   }
 
   // ── Practice Ground: any topic, any time, at the difficulty he picks. Nothing here changes the

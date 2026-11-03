@@ -220,3 +220,8 @@ details.chap summary::before { content: '▸ '; } details.chap[open] summary::be
 .viz .gridl { stroke: var(--line); stroke-width: 1; }
 .viz .d-t { fill: var(--accent4); }
 .viz circle.draw { fill: none; }
+
+/* AMC 8 / MATHCOUNTS tabs */
+.tabs { display: flex; gap: 6px; background: var(--empty); border-radius: 16px; padding: 5px; margin-bottom: 14px; }
+.tab { flex: 1; border: 0; border-radius: 12px; padding: 10px; font: inherit; font-weight: 800; background: transparent; color: var(--muted); cursor: pointer; }
+.tab.on { background: var(--card); color: var(--ink); box-shadow: var(--shadow); }
