@@ -939,9 +939,18 @@
       <div class="card court"><h2>🧟 Zombie Defense</h2>
         <p style="margin:0">Zombies carry math problems toward your base. <b>Type the answer</b> and hit Enter (or ⚡ ZAP) to fry the zombie holding it. Each one that reaches the wall costs a ❤️.</p>
         <div class="clips">${X.ZOMBIE_MISSIONS.map((m) => card('z:' + m.id, m, 'zombies')).join('')}</div></div>
+      <div class="card court"><h2>🏎️ Drift Racer</h2>
+        <p style="margin:0">A question pops up, then a gate with three answers races at you. <b>Steer into the right lane</b> (← → keys, or tap a lane) for a nitro boost. A wrong lane spins you out and costs a 🔧.</p>
+        <div class="clips">${X.RACER_MISSIONS.map((m) => card('r:' + m.id, m, 'racer')).join('')}</div></div>
       <p class="muted" style="text-align:center;font-size:14px">P pauses · 5 in a row = bonus points</p>`);
     bindTabs();
-    app.querySelectorAll('[data-m]').forEach((b) => (b.onclick = () => (b.dataset.g === 'zombies' ? playZombies(b.dataset.m) : playBlaster(b.dataset.m))));
+    app.querySelectorAll('[data-m]').forEach((b) => (b.onclick = () => (b.dataset.g === 'zombies' ? playZombies(b.dataset.m) : b.dataset.g === 'racer' ? playRacer(b.dataset.m) : playBlaster(b.dataset.m))));
+  }
+  function playRacer(mission) {
+    stopGame(); keyHandler = null;
+    h(`<div class="row spread" style="margin-bottom:8px"><button class="btn ghost small" id="x">✕ Quit</button><span class="muted">🏎️ Drift Racer</span></div><div id="arena"></div>`);
+    $('#x').onclick = arcadeHome;
+    game = window.Arcade.startRacer($('#arena'), mission, { sound: S.sound, onEnd: (r) => blasterDone(r) });
   }
   function playZombies(mission) {
     stopGame(); keyHandler = null;
@@ -958,20 +967,22 @@
   function blasterDone(r) {
     stopGame();
     const A = (S.arcade = S.arcade || { best: {}, plays: 0 });
-    const zombies = r.game === 'zombies', bestKey = zombies ? 'z:' + r.mission : r.mission;
+    const zombies = r.game === 'zombies', racer = r.game === 'racer';
+    const bestKey = zombies ? 'z:' + r.mission : racer ? 'r:' + r.mission : r.mission;
+    const GAME = racer ? ['🏎️', 'Drift Racer', 'Lap'] : zombies ? ['🧟', 'Zombie Defense', 'Night'] : ['🚀', 'Asteroid Blaster', 'Wave'];
     const prev = A.best[bestKey] || 0, record = r.score > prev;
     if (record) A.best[bestKey] = r.score;
     A.plays++;
     S.secs = (S.secs || 0) + Math.min(3600, r.seconds);
     S.xp += Math.round(r.score / 100);
-    const m = (zombies ? window.Arcade.ZOMBIE_MISSIONS : window.Arcade.MISSIONS).find((x) => x.id === r.mission);
-    save({ day: E.dayKey(), title: `${zombies ? '🧟 Zombie Defense' : '🚀 Asteroid Blaster'}: ${m.name}`, kind: 'arcade', right: r.hits, total: r.shots, xp: r.score, secs: r.seconds });
+    const m = (zombies ? window.Arcade.ZOMBIE_MISSIONS : racer ? window.Arcade.RACER_MISSIONS : window.Arcade.MISSIONS).find((x) => x.id === r.mission);
+    save({ day: E.dayKey(), title: `${GAME[0]} ${GAME[1]}: ${m.name}`, kind: 'arcade', right: r.hits, total: r.shots, xp: r.score, secs: r.seconds });
     if (record) confetti(120); sfx.level();
     h(`<div class="card scoreboard" style="text-align:center"><h1 style="color:#ffd43b">${record ? '🏆 NEW HIGH SCORE!' : 'GAME OVER'}</h1>
-        <h2 style="color:#fff">⭐ ${r.score}</h2><p>${zombies ? 'Night' : 'Wave'} ${r.wave} · ${r.accuracy}% accurate · best streak ${r.bestCombo}${record ? '' : ` · your best: ${prev}`}</p></div>
-      ${r.mistakes.length ? `<div class="card"><h3>🧠 Learn from the last ones</h3>${r.mistakes.map((x) => zombies ? `<p><b>${esc(x.text)}</b> → <b>${x.text.includes('=') ? 'x = ' : ''}${esc(String(x.answer))}</b>: ${esc(x.why)}</p>` : `<p><b>${esc(x.text)}</b> ${x.kind === 'missed' ? 'slipped past' : 'was the wrong target'} for "${esc(x.rule)}": ${esc(x.why)}</p>`).join('')}</div>` : ''}
-      <div class="card"><div class="grid2"><button class="btn big go" id="again">${zombies ? '🧟' : '🚀'} Play again</button><button class="btn ghost" id="missions">Pick another mission</button></div></div>`);
-    const again = () => (zombies ? playZombies(r.mission) : playBlaster(r.mission));
+        <h2 style="color:#fff">⭐ ${r.score}</h2><p>${GAME[2]} ${r.wave} · ${r.accuracy}% accurate · best streak ${r.bestCombo}${record ? '' : ` · your best: ${prev}`}</p></div>
+      ${r.mistakes.length ? `<div class="card"><h3>🧠 Learn from the last ones</h3>${r.mistakes.map((x) => racer ? `<p><b>${esc(x.text)}</b> → <b>${esc(x.answer)}</b>: ${esc(x.why)}</p>` : zombies ? `<p><b>${esc(x.text)}</b> → <b>${x.text.includes('=') ? 'x = ' : ''}${esc(String(x.answer))}</b>: ${esc(x.why)}</p>` : `<p><b>${esc(x.text)}</b> ${x.kind === 'missed' ? 'slipped past' : 'was the wrong target'} for "${esc(x.rule)}": ${esc(x.why)}</p>`).join('')}</div>` : ''}
+      <div class="card"><div class="grid2"><button class="btn big go" id="again">${GAME[0]} Play again</button><button class="btn ghost" id="missions">Pick another mission</button></div></div>`);
+    const again = () => (zombies ? playZombies(r.mission) : racer ? playRacer(r.mission) : playBlaster(r.mission));
     $('#again').onclick = again;
     $('#missions').onclick = arcadeHome;
     keyHandler = (e) => { if (e.key === 'Enter') again(); };

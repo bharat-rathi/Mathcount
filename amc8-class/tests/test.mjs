@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'js');
 const ctx = vm.createContext({ console, Math, Date });
-for (const f of ['util.js', 'viz.js', 'hoops.js', 'topics-number.js', 'topics-algebra.js', 'topics-geometry.js', 'topics-logic.js', 'topics-counting.js', 'topics-visual.js', 'hard.js', 'hard-diagrams.js', 'studio-counting.js', 'studio-geometry.js', 'studio-algebra.js', 'studio-number-theory.js', 'studio-arithmetic.js', 'studio-logic.js', 'arcade.js', 'arcade-zombies.js', 'engine.js']) {
+for (const f of ['util.js', 'viz.js', 'hoops.js', 'topics-number.js', 'topics-algebra.js', 'topics-geometry.js', 'topics-logic.js', 'topics-counting.js', 'topics-visual.js', 'hard.js', 'hard-diagrams.js', 'studio-counting.js', 'studio-geometry.js', 'studio-algebra.js', 'studio-number-theory.js', 'studio-arithmetic.js', 'studio-logic.js', 'arcade.js', 'arcade-zombies.js', 'arcade-racer.js', 'engine.js']) {
   vm.runInContext(fs.readFileSync(path.join(dir, f), 'utf8'), ctx, { filename: f });
 }
 const { TOPICS, Engine, U, CLIPS, Arcade } = ctx;
@@ -177,6 +177,21 @@ for (const [name, make] of Object.entries(Arcade.ZOMBIE_RULES)) {
       const f = (x) => Function('x', `return (${l.replace(/−/g, '-')}) - (${r.replace(/−/g, '-')})`)(x);
       if (Math.abs(f(p.answer)) > 1e-9) fail(`zombie ${name} L${level}: x = ${p.answer} does not solve ${p.text}`);
     } else if (Math.abs(evalT(p.text) - p.answer) > 1e-9) fail(`zombie ${name} L${level}: ${p.text} is ${evalT(p.text)}, not ${p.answer}`);
+  }
+}
+
+// Drift Racer: three different choices including the answer, and the answer agrees with an
+// independent formula (estimates: the choice closest to the exact value).
+const numOf = (t) => Number(String(t).replace(/[$,]|mph|mi|h$/g, '').trim());
+for (const [name, make] of Object.entries(Arcade.RACER_RULES)) {
+  for (let level = 1; level <= 5; level++) for (let k = 0; k < 400; k++) {
+    const p = make(level), c = p.choices;
+    if (c.length !== 3 || new Set(c).size !== 3 || !c.includes(p.answer) || !p.why || [p.text, p.why, ...c].some(bad)) { fail(`racer ${name} L${level}: ${p.text} → ${p.answer} [${c}]`); continue; }
+    const exact = Function(`return ${p.expr}`)();
+    if (p.root) { if (!(p.root[0] < exact && exact < p.root[1])) fail(`racer ${p.text}: √ not between ${p.root}`); }
+    else if (p.estimate) { const best = c.slice().sort((a, b) => Math.abs(numOf(a) - exact) - Math.abs(numOf(b) - exact))[0]; if (best !== p.answer) fail(`racer ${p.text}: closest choice is ${best}, not ${p.answer}`); }
+    else if (p.answer.includes(':')) { const [a, b] = p.answer.split(':').map(Number); if (Math.abs(a / b - exact) > 1e-9 || gcdT(a, b) !== 1) fail(`racer ${p.text}: ${p.answer}`); }
+    else if (Math.abs(numOf(p.answer) - exact) > 1e-6) fail(`racer ${p.text}: answer ${p.answer} but formula gives ${exact}`);
   }
 }
 
