@@ -243,3 +243,9 @@ details.chap summary::before { content: '▸ '; } details.chap[open] summary::be
 .zd-ans { flex: 1; font-size: 30px; font-weight: 800; text-align: center; background: var(--card); border: 3px solid var(--accent); border-radius: 14px; padding: 6px; letter-spacing: 2px; }
 .zd-keys { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-top: 8px; }
 .zd-keys .btn { padding: 10px 0; font-size: 20px; }
+
+/* Drift Racer */
+.dr-q { position: absolute; top: 70px; left: 10px; right: 10px; text-align: center; background: rgba(0,0,0,.72); color: #fff; font-weight: 800; font-size: 19px; border-radius: 14px; padding: 8px 10px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+.dr-q.on { opacity: 1; }
+.dr-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+.dr-pad .btn { padding: 14px 0; font-size: 18px; }
