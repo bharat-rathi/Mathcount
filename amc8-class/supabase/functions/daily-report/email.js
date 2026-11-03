@@ -20,7 +20,7 @@ function kidSection(r, today) {
   const mis = Object.entries(r.mistakes || {}).sort((a, b) => b[1] - a[1])[0];
   const lines = [
     `🏀 ${r.name}`,
-    games.length ? `✅ Today: ${games.map((g) => `${g.title} (${g.right}/${g.total})`).join(', ')}` : '⚠️ No game today. A short one tomorrow keeps the streak alive (timeouts cover one missed day).',
+    games.length ? `✅ Today: ${games.map((g) => `${g.title} (${g.right}/${g.total})`).join(', ')}` : '⚠️ No AMC 8 game today. A short one tomorrow keeps the streak alive (timeouts cover one missed day).',
     `🔥 Streak: ${r.streak || 0} days (best ${r.bestStreak || 0}) · Game ${r.classIdx || 0} of ${r.totalClasses || '?'} · ${days} days to the AMC 8`,
     strong.length ? `💪 Strongest: ${fmt(strong)}` : '',
     weak.length ? `🎯 Needs work: ${fmt(weak)}` : '',
@@ -28,7 +28,16 @@ function kidSection(r, today) {
     mis && mis[1] > 0 ? `🧩 Most common mistake: ${TIPS[mis[0]] || mis[0]}` : '',
     weak[0] ? `💡 Tonight's idea: ask ${r.name} to explain one ${weak[0][0]} problem to you. Teaching it locks it in.` : '',
   ];
-  return { played: games.length > 0, text: lines.filter(Boolean).join('\n') };
+  // MATHCOUNTS tab (only for kids who have used it).
+  const mc = r.mathcounts;
+  const mcToday = mc && mc.days && mc.days[today];
+  if (mc && mc.answered) {
+    lines.push(mcToday
+      ? `🏅 MATHCOUNTS: today ${mcToday.correct}/${mcToday.total} · 🔥 ${mc.streak || 0}-day streak · ${mc.rank}`
+      : `🏅 MATHCOUNTS: no daily 10 today · 🔥 best streak ${mc.bestStreak || 0} days · ${mc.rank}`);
+    if (mc.weak && mc.weak.length) lines.push(`   MATHCOUNTS topics to work on: ${mc.weak.join(', ')}`);
+  }
+  return { played: games.length > 0 || !!mcToday, text: lines.filter(Boolean).join('\n') };
 }
 
 export function buildEmail(reports, today) {

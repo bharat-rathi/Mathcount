@@ -29,7 +29,13 @@
     classIdx: S.classIdx, totalClasses: E.buildPlan().length, streak: S.streak, bestStreak: S.bestStreak,
     xp: S.xp, level: E.levelOf(S.xp).lvl, badges: S.badges,
     recent: S.log.slice(-14), mistakes: S.mistakes || {}, minutes: Math.round((S.secs || 0) / 60), clips: (S.clips || []).length,
-    mathcounts: S.mc ? { xp: S.mc.xp, streak: S.mc.streaks.day.current, answered: Object.values(S.mc.topics).reduce((a, t) => a + t.attempts, 0) } : null,
+    mathcounts: S.mc && window.MC ? (() => {
+      const M = window.MC, today = M.dateKey();
+      return { xp: S.mc.xp, rank: M.rankFor(S.mc.xp).name, streak: M.liveDayStreak(S.mc, today), bestStreak: S.mc.streaks.day.best,
+        answered: Object.values(S.mc.topics).reduce((a, t) => a + t.attempts, 0),
+        days: Object.fromEntries(Object.entries(S.mc.days).slice(-14).map(([d, v]) => [d, { correct: v.correct, total: v.total }])),
+        weak: M.weakestTopics(S.mc, 2).map((w) => `${w.topic.name} ${Math.round(100 * w.s.mastery)}%`) };
+    })() : null,
     mastery: Object.fromEntries(Object.entries(S.mastery).filter(([, m]) => m.r.length).map(([id, m]) =>
       [TOP[id].name, { pct: Math.round((100 * m.r.reduce((a, b) => a + b, 0)) / m.r.length), n: m.r.length }])),
   });
