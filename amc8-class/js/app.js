@@ -931,13 +931,23 @@
   const stopGame = () => { if (game) { game.stop(); game = null; } };
   function arcadeHome() {
     stopGame(); clearTimers(); keyHandler = null;
-    const A = S.arcade || { best: {}, plays: 0 };
-    h(`${tabBar('arc')}<div class="card court"><h1>🚀 Asteroid Blaster</h1>
-        <p style="margin:0">Number asteroids are falling! Blast <b>only</b> the ones that match the rule. A wrong shot or a target that slips past costs a 🛡️ shield. Lose all 3 and it's game over.</p>
-        <p class="muted" style="margin:8px 0 0">Click or tap an asteroid to fire · P to pause · 5 in a row = bonus points</p></div>
-      <div class="card"><h3>Pick a mission</h3><div class="clips">${window.Arcade.MISSIONS.map((m) => `<button class="clip" data-m="${m.id}"><span class="cem">${m.emoji}</span><b>${m.name}</b><small>${A.best[m.id] ? `🏆 best ${A.best[m.id]}` : 'not played yet'}</small></button>`).join('')}</div></div>`);
+    const A = S.arcade || { best: {}, plays: 0 }, X = window.Arcade;
+    const card = (key, m, game) => `<button class="clip" data-g="${game}" data-m="${m.id}"><span class="cem">${m.emoji}</span><b>${m.name}</b><small>${A.best[key] ? `🏆 best ${A.best[key]}` : 'not played yet'}</small></button>`;
+    h(`${tabBar('arc')}<div class="card court"><h2>🚀 Asteroid Blaster</h2>
+        <p style="margin:0">Blast <b>only</b> the number asteroids that match the rule. A wrong shot, or a target that slips past, costs a 🛡️ shield. Click or tap to fire.</p>
+        <div class="clips">${X.MISSIONS.map((m) => card(m.id, m, 'blaster')).join('')}</div></div>
+      <div class="card court"><h2>🧟 Zombie Defense</h2>
+        <p style="margin:0">Zombies carry math problems toward your base. <b>Type the answer</b> and hit Enter (or ⚡ ZAP) to fry the zombie holding it. Each one that reaches the wall costs a ❤️.</p>
+        <div class="clips">${X.ZOMBIE_MISSIONS.map((m) => card('z:' + m.id, m, 'zombies')).join('')}</div></div>
+      <p class="muted" style="text-align:center;font-size:14px">P pauses · 5 in a row = bonus points</p>`);
     bindTabs();
-    app.querySelectorAll('[data-m]').forEach((b) => (b.onclick = () => playBlaster(b.dataset.m)));
+    app.querySelectorAll('[data-m]').forEach((b) => (b.onclick = () => (b.dataset.g === 'zombies' ? playZombies(b.dataset.m) : playBlaster(b.dataset.m))));
+  }
+  function playZombies(mission) {
+    stopGame(); keyHandler = null;
+    h(`<div class="row spread" style="margin-bottom:8px"><button class="btn ghost small" id="x">✕ Quit</button><span class="muted">🧟 Zombie Defense</span></div><div id="arena"></div>`);
+    $('#x').onclick = arcadeHome;
+    game = window.Arcade.startZombies($('#arena'), mission, { sound: S.sound, onEnd: (r) => blasterDone(r) });
   }
   function playBlaster(mission) {
     stopGame(); keyHandler = null;
@@ -948,21 +958,23 @@
   function blasterDone(r) {
     stopGame();
     const A = (S.arcade = S.arcade || { best: {}, plays: 0 });
-    const prev = A.best[r.mission] || 0, record = r.score > prev;
-    if (record) A.best[r.mission] = r.score;
+    const zombies = r.game === 'zombies', bestKey = zombies ? 'z:' + r.mission : r.mission;
+    const prev = A.best[bestKey] || 0, record = r.score > prev;
+    if (record) A.best[bestKey] = r.score;
     A.plays++;
     S.secs = (S.secs || 0) + Math.min(3600, r.seconds);
     S.xp += Math.round(r.score / 100);
-    const m = window.Arcade.MISSIONS.find((x) => x.id === r.mission);
-    save({ day: E.dayKey(), title: `🚀 Asteroid Blaster: ${m.name}`, kind: 'arcade', right: r.hits, total: r.shots, xp: r.score, secs: r.seconds });
+    const m = (zombies ? window.Arcade.ZOMBIE_MISSIONS : window.Arcade.MISSIONS).find((x) => x.id === r.mission);
+    save({ day: E.dayKey(), title: `${zombies ? '🧟 Zombie Defense' : '🚀 Asteroid Blaster'}: ${m.name}`, kind: 'arcade', right: r.hits, total: r.shots, xp: r.score, secs: r.seconds });
     if (record) confetti(120); sfx.level();
     h(`<div class="card scoreboard" style="text-align:center"><h1 style="color:#ffd43b">${record ? '🏆 NEW HIGH SCORE!' : 'GAME OVER'}</h1>
-        <h2 style="color:#fff">⭐ ${r.score}</h2><p>Wave ${r.wave} · ${r.accuracy}% accurate · best streak ${r.bestCombo}${record ? '' : ` · your best: ${prev}`}</p></div>
-      ${r.mistakes.length ? `<div class="card"><h3>🧠 Learn from the last ones</h3>${r.mistakes.map((x) => `<p><b>${esc(x.text)}</b> ${x.kind === 'missed' ? 'slipped past' : 'was the wrong target'} for "${esc(x.rule)}": ${esc(x.why)}</p>`).join('')}</div>` : ''}
-      <div class="card"><div class="grid2"><button class="btn big go" id="again">🚀 Play again</button><button class="btn ghost" id="missions">Pick another mission</button></div></div>`);
-    $('#again').onclick = () => playBlaster(r.mission);
+        <h2 style="color:#fff">⭐ ${r.score}</h2><p>${zombies ? 'Night' : 'Wave'} ${r.wave} · ${r.accuracy}% accurate · best streak ${r.bestCombo}${record ? '' : ` · your best: ${prev}`}</p></div>
+      ${r.mistakes.length ? `<div class="card"><h3>🧠 Learn from the last ones</h3>${r.mistakes.map((x) => zombies ? `<p><b>${esc(x.text)}</b> → <b>${x.text.includes('=') ? 'x = ' : ''}${esc(String(x.answer))}</b>: ${esc(x.why)}</p>` : `<p><b>${esc(x.text)}</b> ${x.kind === 'missed' ? 'slipped past' : 'was the wrong target'} for "${esc(x.rule)}": ${esc(x.why)}</p>`).join('')}</div>` : ''}
+      <div class="card"><div class="grid2"><button class="btn big go" id="again">${zombies ? '🧟' : '🚀'} Play again</button><button class="btn ghost" id="missions">Pick another mission</button></div></div>`);
+    const again = () => (zombies ? playZombies(r.mission) : playBlaster(r.mission));
+    $('#again').onclick = again;
     $('#missions').onclick = arcadeHome;
-    keyHandler = (e) => { if (e.key === 'Enter') playBlaster(r.mission); };
+    keyHandler = (e) => { if (e.key === 'Enter') again(); };
   }
 
   // ── Practice Ground: any topic, any time, at the difficulty he picks. Nothing here changes the

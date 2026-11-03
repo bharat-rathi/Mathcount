@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'js');
 const ctx = vm.createContext({ console, Math, Date });
-for (const f of ['util.js', 'viz.js', 'hoops.js', 'topics-number.js', 'topics-algebra.js', 'topics-geometry.js', 'topics-logic.js', 'topics-counting.js', 'topics-visual.js', 'hard.js', 'hard-diagrams.js', 'studio-counting.js', 'studio-geometry.js', 'studio-algebra.js', 'studio-number-theory.js', 'studio-arithmetic.js', 'studio-logic.js', 'arcade.js', 'engine.js']) {
+for (const f of ['util.js', 'viz.js', 'hoops.js', 'topics-number.js', 'topics-algebra.js', 'topics-geometry.js', 'topics-logic.js', 'topics-counting.js', 'topics-visual.js', 'hard.js', 'hard-diagrams.js', 'studio-counting.js', 'studio-geometry.js', 'studio-algebra.js', 'studio-number-theory.js', 'studio-arithmetic.js', 'studio-logic.js', 'arcade.js', 'arcade-zombies.js', 'engine.js']) {
   vm.runInContext(fs.readFileSync(path.join(dir, f), 'utf8'), ctx, { filename: f });
 }
 const { TOPICS, Engine, U, CLIPS, Arcade } = ctx;
@@ -165,6 +165,21 @@ for (const [name, make] of Object.entries(Arcade.RULES)) {
     }
   }
 }
+// Zombie Defense: every problem's answer is a whole number and matches the problem when the
+// problem is worked out independently here.
+const evalT = (t) => Function(`return (${t.replace(/×/g, '*').replace(/÷/g, '/').replace(/−/g, '-').replace(/(\d+)²/g, '($1**2)')})`)();
+for (const [name, make] of Object.entries(Arcade.ZOMBIE_RULES)) {
+  for (let level = 1; level <= 5; level++) for (let k = 0; k < 400; k++) {
+    const p = make(level);
+    if (!Number.isInteger(p.answer) || !p.why || bad(p.text) || bad(p.why)) { fail(`zombie ${name} L${level}: ${p.text} = ${p.answer}`); continue; }
+    if (p.text.includes('x')) {
+      const [l, r] = p.text.split('=').map((sd) => sd.trim().replace(/(\d)x/g, '$1*x').replace(/(\d)\(/g, '$1*('));
+      const f = (x) => Function('x', `return (${l.replace(/−/g, '-')}) - (${r.replace(/−/g, '-')})`)(x);
+      if (Math.abs(f(p.answer)) > 1e-9) fail(`zombie ${name} L${level}: x = ${p.answer} does not solve ${p.text}`);
+    } else if (Math.abs(evalT(p.text) - p.answer) > 1e-9) fail(`zombie ${name} L${level}: ${p.text} is ${evalT(p.text)}, not ${p.answer}`);
+  }
+}
+
 if (Arcade.MISSIONS.some((m) => m.rules.some((r) => !Arcade.RULES[r]))) fail('blaster mission uses an unknown rule');
 
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
