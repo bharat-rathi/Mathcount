@@ -257,8 +257,8 @@
 
   // Color code used in all lessons: {g:given} blue, {f:find} orange, {a:answer} green.
   // Superscript digits as <sup>, since some fonts draw ⁰ badly. Input must already be safe HTML.
-  const SUPS = '⁰¹²³⁴⁵⁶⁷⁸⁹';
-  const sup = (t) => String(t).replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹]+/g, (m) => `<sup>${[...m].map((c) => SUPS.indexOf(c)).join('')}</sup>`);
+  const SUPS = { '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9', '⁻': '−' };
+  const sup = (t) => String(t).replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁻]+/g, (m) => `<sup>${[...m].map((c) => SUPS[c]).join('')}</sup>`);
   const fmt = (t) => sup(String(t).replace(/\{([gfa]):([^}]*)\}/g, (_, k, x) => `<span class="cc-${k}">${x}</span>`));
   const plain = (t) => String(t).replace(/\{[gfa]:([^}]*)\}/g, '$1');
 
@@ -390,9 +390,9 @@
   function askQ(q, { seg, onDone, label, before = '' }) {
     let tries = 0, done = false, hintsUsed = 0;
     const hintBar = q.hints ? `<div class="row" id="hb" style="margin-top:10px"><button class="btn ghost small" id="h1">💡 Small hint (−10)</button></div><div id="hs"></div>` : '';
-    const choices = q.choices.map((c, i) => `<button class="choice" data-c="${esc(c)}"><span class="L">${LETTERS[i]}</span><span>${esc(c)}</span></button>`).join('');
+    const choices = q.choices.map((c, i) => `<button class="choice" data-c="${esc(c)}"><span class="L">${LETTERS[i]}</span><span>${sup(esc(c))}</span></button>`).join('');
     frame(`${before}<div class="card" id="qc">
-        <div class="qtext">${esc(q.q)}</div>
+        <div class="qtext">${sup(esc(q.q))}</div>
         ${q.svg ? `<div class="qviz">${q.svg}</div>` : ''}
         <div class="choices">${choices}</div>
         ${hintBar}
@@ -419,8 +419,8 @@
       if (gain) floater(`+${gain}`, $('#qc'));
       if (correct) swish();
       const praise = ['Swish! 🏀', 'Nothing but net!', 'And one! 💪', 'Splash! 💦', 'Bucket! 🔥', 'Too easy! 😎', 'From downtown! 🎯'];
-      const steps = q.steps.map((s) => `<li>${esc(s)}</li>`).join('');
-      $('#fb').innerHTML = `<div class="feedback ${correct ? 'good' : 'bad'}">${correct ? (firstTry ? praise[Math.floor(Math.random() * praise.length)] : 'Got it on the second try 👍') : `The answer is <b>${esc(q.answer)}</b>. Here's how:`}
+      const steps = q.steps.map((s) => `<li>${sup(esc(s))}</li>`).join('');
+      $('#fb').innerHTML = `<div class="feedback ${correct ? 'good' : 'bad'}">${correct ? (firstTry ? praise[Math.floor(Math.random() * praise.length)] : 'Got it on the second try 👍') : `The answer is <b>${sup(esc(q.answer))}</b>. Here's how:`}
         ${correct && firstTry ? `<details><summary>See the fast way</summary><ol class="sol">${steps}</ol></details>` : `<ol class="sol">${steps}</ol>`}</div>
         ${firstTry ? '' : `<div class="why" id="why"><b>What happened?</b> (one tap)<div class="guesses">${Object.entries(E.MISTAKES).map(([k, [em, t]]) => `<button class="btn ghost small mk" data-k="${k}">${em} ${t}</button>`).join('')}</div></div>`}
         ${q.key ? `<div class="why" id="kq"><b>🔑 What was the key idea?</b><div class="guesses">${window.HARD.keyOptions({ key: q.key }).map((k) => `<button class="btn ghost small kk" data-k="${esc(k)}">${esc(k)}</button>`).join('')}</div></div>` : ''}
@@ -474,7 +474,7 @@
     if (s.q.adapt) {
       const sk = P.skill[id] != null ? P.skill[id] : E.skillOf(S, id, P.cls.pass);
       const lvl = E.levelFor(sk);
-      if (lvl !== s.q.level) s.q = Object.assign(E.makeQuestion(id, lvl, s.q.gen), { adapt: true });
+      if (lvl !== s.q.level) s.q = Object.assign(E.fresh(S, id, lvl, { gen: s.q.gen, batch: P.cls.batch }), { adapt: true });
       tag = ` · ${LEVEL_NAMES[lvl]}${P.moved ? (P.moved > 0 ? ' · 📈 leveled up!' : ' · 🧱 building back up') : ''}`;
       P.moved = 0;
     }
@@ -546,7 +546,7 @@
       const q = s.qs[cur];
       const nav = s.qs.map((_, i) => `<button class="btn small ${i === cur ? '' : 'ghost'}" data-j="${i}" style="min-width:42px">${picks[i] != null ? '●' : i + 1}</button>`).join('');
       frame(`<div class="card"><div class="row spread"><b>Problem ${cur + 1} of ${s.qs.length}</b><span class="pill" id="mt"></span></div></div>
-        <div class="card"><div class="qtext">${esc(q.q)}</div>${q.svg ? `<div class="qviz">${q.svg}</div>` : ''}<div class="choices">${q.choices.map((c, i) => `<button class="choice ${picks[cur] === c ? 'picked' : ''}" data-c="${esc(c)}"><span class="L">${LETTERS[i]}</span><span>${esc(c)}</span></button>`).join('')}</div>
+        <div class="card"><div class="qtext">${sup(esc(q.q))}</div>${q.svg ? `<div class="qviz">${q.svg}</div>` : ''}<div class="choices">${q.choices.map((c, i) => `<button class="choice ${picks[cur] === c ? 'picked' : ''}" data-c="${esc(c)}"><span class="L">${LETTERS[i]}</span><span>${sup(esc(c))}</span></button>`).join('')}</div>
         <p></p><div class="row spread"><button class="btn ghost" id="pv" ${cur ? '' : 'disabled'}>◀ Back</button><button class="btn ghost" id="skip">Skip</button><button class="btn" id="fw">${cur === s.qs.length - 1 ? 'Finish' : 'Next ▶'}</button></div></div>
         <div class="card"><div class="row">${nav}</div></div>`, P.cls.title);
       tick();
@@ -615,8 +615,8 @@
     const leveled = E.levelOf(S.xp).lvl > before;
     confetti(stars * 40); sfx.level();
     const review = P.review ? `<div class="card"><h3>Review your answers</h3>${P.review.map(({ q, pick }, i) => `
-        <details ${pick === q.answer ? '' : 'open'}><summary>${pick === q.answer ? '✅' : pick == null ? '⬜' : '❌'} ${i + 1}. ${esc(q.q)}</summary>
-        <p>Your answer: <b>${pick == null ? 'skipped' : esc(pick)}</b> · Correct: <b>${esc(q.answer)}</b></p><ol class="sol">${q.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol></details>`).join('')}</div>` : '';
+        <details ${pick === q.answer ? '' : 'open'}><summary>${pick === q.answer ? '✅' : pick == null ? '⬜' : '❌'} ${i + 1}. ${sup(esc(q.q))}</summary>
+        <p>Your answer: <b>${pick == null ? 'skipped' : sup(esc(pick))}</b> · Correct: <b>${sup(esc(q.answer))}</b></p><ol class="sol">${q.steps.map((s) => `<li>${sup(esc(s))}</li>`).join('')}</ol></details>`).join('')}</div>` : '';
     h(`<div class="card" style="text-align:center">
         <h1>${P.practice ? 'Practice complete! 🎉' : P.cls.kind === 'playoff' ? `Playoffs: ${P.right}/${P.total} ${P.right >= 15 ? '🏆' : '💪'}` : P.cls.kind === 'paper' ? `${P.right}/25 on the real AMC 8 ${P.right >= 21 ? '👑' : '🏆'}` : win ? 'FINAL: WIN! 🏆' : 'FINAL: tough loss 😤'}</h1>
         ${P.cls.kind === 'playoff' ? `<p>${P.right >= 21 ? 'Honor Roll pace. Finals Prep will sharpen the last few points.' : P.right >= 15 ? 'Strong showing! Finals Prep goes after the points you dropped.' : 'Every miss tells us where the points are. Finals Prep starts there.'}</p>` : ''}
@@ -639,7 +639,7 @@
   // ── Shootaround: 60 seconds of rapid-fire mental math on a big keypad. Typing the answer
   // (no choices to lean on) is what builds the instant recall a "calculation machine" needs.
   function shootaround() {
-    let left = 60, made = 0, shots = 0, entry = '', fact = H.nextFact(S), shownAt = Date.now(), over = false;
+    const recent = { kinds: [], keys: [] }; let left = 60, made = 0, shots = 0, entry = '', fact = H.nextFact(S, recent), shownAt = Date.now(), over = false; H.noteFact(recent, fact);
     const keys = ['7', '8', '9', '4', '5', '6', '1', '2', '3', '.', '0', '⌫'];
     frame(`<div class="card" style="text-align:center">
         <div class="row spread"><span class="pill">🏀 ${'<b id="made">0</b>'} made</span><span class="pill" id="sc">⏱ 60</span><span class="pill">🏅 Best ${S.shootPB}</span></div>
@@ -658,7 +658,7 @@
       if (ok) { made++; swish(); sfx.good(); $('#made').textContent = made; }
       $('#ms').textContent = ok ? '' : `Brick! ${fact.q} = ${fact.a}`;
       if (!ok) sfx.bad();
-      entry = ''; const last = fact.key; do fact = H.nextFact(S); while (fact.key === last); shownAt = Date.now(); draw();
+      entry = ''; fact = H.nextFact(S, recent); H.noteFact(recent, fact); shownAt = Date.now(); draw();
     };
     const press = (k) => { if (over) return; if (k === '⌫') entry = entry.slice(0, -1); else if (entry.length < 7) entry += k; draw(); };
     app.querySelectorAll('.key').forEach((b) => (b.onclick = () => press(b.dataset.k)));
@@ -1032,9 +1032,9 @@
   const focusWhy = (f) => [f.n ? `${f.pct}% first-try lately` : '', f.misses ? `${f.misses} "didn't know" tags` : ''].filter(Boolean).join(' · ');
   const masteryPct = (id) => { const m = S.mastery[id]; return m && m.r.length ? Math.round((100 * m.r.reduce((a, b) => a + b, 0)) / m.r.length) : null; };
 
-  function practiceQuestions(id, level, count) {
-    const lv = LEVELS[level][1], gens = window.U.shuffle(TOP[id].gens.map((_, i) => i));
-    return Array.from({ length: count }, (_, k) => E.makeQuestion(id, lv[Math.floor((k * lv.length) / count)], gens[k % gens.length]));
+  function practiceQuestions(id, level, count, batch = E.newBatch()) {
+    const lv = LEVELS[level][1];
+    return Array.from({ length: count }, (_, k) => E.fresh(S, id, lv[Math.floor((k * lv.length) / count)], { batch }));
   }
   function startPractice(id) {
     startClass(null, { idx: -1, kind: 'practice', title: TOP[id].name, segments: [{ type: 'quiz', part: 1, questions: practiceQuestions(id, pg.level, pg.count) }] });
@@ -1052,7 +1052,8 @@
   function startMix() {
     const weak = E.focusTopics(S, 4).map((f) => f.id).filter((id) => TOP[id]);
     const pool = weak.length >= 2 ? weak : E.taughtTopics(S, S.classIdx).length ? E.taughtTopics(S, S.classIdx) : E.ORDER.slice(0, 3);
-    const qs = Array.from({ length: pg.count }, (_, k) => practiceQuestions(pool[k % pool.length], pg.level, 1)[0]);
+    const batch = E.newBatch();
+    const qs = Array.from({ length: pg.count }, (_, k) => practiceQuestions(pool[k % pool.length], pg.level, 1, batch)[0]);
     startClass(null, { idx: -1, kind: 'practice', title: "Coach's mix", segments: [{ type: 'quiz', part: 1, questions: window.U.shuffle(qs) }] });
   }
   function bindPracticeButtons() {

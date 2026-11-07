@@ -6,10 +6,13 @@ import { fileURLToPath } from 'node:url';
 
 const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'js');
 const ctx = vm.createContext({ console, Math, Date });
-for (const f of ['util.js', 'viz.js', 'hoops.js', 'topics-number.js', 'topics-algebra.js', 'topics-geometry.js', 'topics-logic.js', 'topics-counting.js', 'topics-visual.js', 'hard.js', 'hard-diagrams.js', 'studio-counting.js', 'studio-geometry.js', 'studio-algebra.js', 'studio-number-theory.js', 'studio-arithmetic.js', 'studio-logic.js', 'arcade.js', 'arcade-zombies.js', 'arcade-racer.js', 'arcade-buzzer.js', 'arcade-towers.js', 'arcade-heist.js', 'engine.js']) {
+for (const f of ['util.js', 'viz.js', 'hoops.js', 'topics-number.js', 'topics-algebra.js', 'topics-geometry.js', 'topics-logic.js', 'topics-counting.js', 'topics-visual.js', 'topics-extra.js', 'hard.js', 'hard-diagrams.js', 'studio-counting.js', 'studio-geometry.js', 'studio-algebra.js', 'studio-number-theory.js', 'studio-arithmetic.js', 'studio-logic.js', 'arcade.js', 'arcade-zombies.js', 'arcade-racer.js', 'arcade-buzzer.js', 'arcade-towers.js', 'arcade-heist.js', 'engine.js']) {
   vm.runInContext(fs.readFileSync(path.join(dir, f), 'utf8'), ctx, { filename: f });
 }
-const { TOPICS, Engine, U, CLIPS, Arcade } = ctx;
+const { TOPICS, Engine, U, CLIPS, Arcade, Hoops } = ctx;
+// The AMC topics also borrow the MATHCOUNTS coach's problem types (an ES module, so imported here).
+const { installBridge } = await import('../js/mc-bridge.js');
+const bridged = installBridge(TOPICS);
 
 let failures = 0;
 const fail = (msg) => { failures++; if (failures < 40) console.error('FAIL', msg); };
@@ -43,6 +46,8 @@ for (const t of TOPICS) {
         if (q.choices.some((c) => bad(c) || / \++$/.test(c))) { fail(`filler/bad choice ${where}`); break; }
         const n = Number(q.answer);
         if (Number.isFinite(n) && !Number.isInteger(n) && String(n).split('.')[1].length > 2) { fail(`ugly decimal ${where}`); break; }
+        // Generators that carry an independent second calculation must agree with their answer.
+        if (q.chk !== undefined && !(typeof q.chk === 'number' ? Math.abs(q.chk - Number(q.answer)) < 1e-9 : String(q.chk) === q.answer)) { fail(`check disagrees ${where} (second calculation: ${q.chk})`); break; }
       }
     }
   });
@@ -227,6 +232,56 @@ for (let level = 1; level <= 5; level++) for (let k = 0; k < 400; k++) {
 
 if (Arcade.BUZZER_MISSIONS.some((m) => !Arcade.ZOMBIE_RULES[m.id])) fail('buzzer mission without a question maker');
 if (Arcade.MISSIONS.some((m) => m.rules.some((r) => !Arcade.RULES[r]))) fail('blaster mission uses an unknown rule');
+
+// Variety: the quizzes must not feel repetitive. Every topic has plenty of question types, and over
+// simulated seasons (answering everything) there are no repeats inside a game, almost none across
+// the season, no long runs of the same type, and most of a quiz is a different type each time.
+for (const t of TOPICS) if (t.gens.length < 8) fail(`${t.id} has only ${t.gens.length} question types (want 8+)`);
+{
+  let gameDup = 0, seasonDup = 0, adj = 0, pairs = 0, qn = 0, share = 0, quizzes = 0; const perTopic = {};
+  for (let season = 0; season < 4; season++) {
+    const st = Engine.newState(), seenAll = new Set();
+    for (let i = 0; i < plan.length; i++) {
+      if (plan[i].type !== 'lesson' && plan[i].type !== 'prep') continue;
+      const c = Engine.buildClass(st, i);
+      const quiz = c.segments.filter((x) => x.type === 'quiz').flatMap((x) => x.questions);
+      const warm = c.segments.filter((x) => x.type === 'warmup').flatMap((x) => x.questions);
+      const fps = new Set(), tpls = new Set();
+      for (const q of quiz) { if (fps.has(q.fp)) gameDup++; fps.add(q.fp); tpls.add(q.tpl); if (seenAll.has(q.fp)) seasonDup++; qn++; }
+      for (let k = 1; k < quiz.length; k++) { pairs++; if (quiz[k].tpl === quiz[k - 1].tpl) adj++; }
+      share += tpls.size / quiz.length; quizzes++;
+      const pt = (perTopic[c.topic] = perTopic[c.topic] || [0, 0]); pt[0] += tpls.size / quiz.length; pt[1]++;
+      for (const q of [...quiz, ...warm]) { Engine.record(st, q, true, true); seenAll.add(q.fp); }
+    }
+  }
+  if (gameDup) fail(`${gameDup} repeated questions inside a single game`);
+  if (seasonDup / qn > 0.03) fail(`${(100 * seasonDup / qn).toFixed(1)}% of quiz questions repeat one seen earlier in the season (max 3%)`);
+  if (adj / pairs > 0.03) fail(`${(100 * adj / pairs).toFixed(1)}% of back-to-back questions are the same type (max 3%)`);
+  if (share / quizzes < 0.85) fail(`only ${(100 * share / quizzes).toFixed(0)}% of a quiz is a different type each time (want 85%+)`);
+  for (const [id, [sum, n]] of Object.entries(perTopic)) if (sum / n < 0.7) fail(`${id}: quizzes are only ${(100 * sum / n).toFixed(0)}% varied (want 70%+)`);
+}
+
+// Shootaround: 24 kinds of fact, every answer a number the keypad can type (it has a decimal point) that matches its second calculation,
+// and a 60-second session never repeats a fact or asks the same kind twice in a row.
+if (Hoops.FACTS.length < 24) fail(`Shootaround has only ${Hoops.FACTS.length} kinds of fact`);
+Hoops.FACTS.forEach((make, gi) => { for (let k = 0; k < 300; k++) { const f = make(); if (!Number.isFinite(f.a) || String(f.a).length > 7 || bad(f.q) || (f.chk !== undefined && f.chk !== f.a)) { fail(`fact #${gi} ${f.q}: a=${f.a} chk=${f.chk}`); break; } } });
+{
+  const kindsSeen = new Set(); let repeatKey = 0, sameKind = 0, sessions = 0;
+  for (let s = 0; s < 200; s++) {
+    const st = { facts: {} }, recent = { kinds: [], keys: [] }; let lastKind = null;
+    for (let k = 0; k < 30; k++) {
+      const f = Hoops.nextFact(st, recent), kind = Hoops.kindOf(f.q);
+      if (recent.keys.includes(f.key)) repeatKey++;
+      if (kind === lastKind) sameKind++;
+      kindsSeen.add(kind); lastKind = kind; Hoops.noteFact(recent, f);
+      Hoops.recordFact(st, f, k % 3 !== 0, 1500); // some misses, so the spaced-repetition path runs too
+    }
+    sessions++;
+  }
+  if (repeatKey) fail(`Shootaround repeated a fact inside a session ${repeatKey} times`);
+  if (sameKind) fail(`Shootaround asked the same kind twice in a row ${sameKind} times`);
+  if (kindsSeen.size < 18) fail(`Shootaround only showed ${kindsSeen.size} kinds of fact`);
+}
 
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 // Concept Studio clips: unique ids, a real topic, frames with a picture and a sentence, and a

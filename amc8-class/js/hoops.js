@@ -45,24 +45,44 @@
     () => { const n = R(10, 40); return { key: `gauss${n}`, q: `1 + 2 + … + ${n}`, a: (n * (n + 1)) / 2 }; },
     () => { const lo = R(30, 95); let n = lo; while (isPrime(n)) n++; let f = 2; while (n % f) f++; return { key: `sm${n}`, q: `smallest prime factor of ${n}`, a: f }; },
     () => { const p = pick([2, 3, 4, 5, 6, 7, 8, 9]), n = R(20, 99); return { key: `u${p}`, q: `units digit of ${p}^${n}`, a: Number(String(p ** (((n - 1) % 4) + 1)).slice(-1)) }; },
+    () => { const n = R(12, 45); return { key: `x9-${n}`, q: `9 × ${n}`, a: 9 * n, chk: 10 * n - n }; },
+    () => { const n = R(11, 99); return { key: `x101-${n}`, q: `101 × ${n}`, a: 101 * n, chk: n * 100 + n }; },
+    () => { let p, n; do { p = pick([5, 10, 15, 20, 25, 30, 40, 60, 75]); n = 20 * R(1, 20); } while ((p * n) % 100); return { key: `pc${p}of${n}`, q: `${p}% of ${n}`, a: (p * n) / 100, chk: Math.round((n / 100) * p) }; },
+    () => { const d = pick([3, 4, 5, 6, 8]), k = R(1, d - 1), n = d * R(3, 15); return { key: `fo${k}${d}-${n}`, q: `${k}/${d} of ${n}`, a: k * (n / d), chk: (n * k) / d }; },
+    () => { const n = R(11, 25); return { key: `rt${n}`, q: `√${n * n}`, a: n, chk: Math.round(Math.sqrt(n * n)) }; },
+    () => { const n = 25 * R(4, 60); return { key: `d25-${n}`, q: `${n} ÷ 25`, a: n / 25, chk: (n * 4) / 100 }; },
+    () => { const n = R(20, 130); let p = n + 1; while (isPrime(p) === false) p++; return { key: `np${n}`, q: `next prime after ${n}`, a: p, chk: (() => { let x = n + 1; for (;;) { let ok = x > 1; for (let d = 2; d * d <= x; d++) if (x % d === 0) ok = false; if (ok) return x; x++; } })() }; },
+    () => { const n = R(1000, 99999); return { key: `ds${n}`, q: `digit sum of ${n}`, a: String(n).split('').reduce((s, d) => s + Number(d), 0), chk: [...String(n)].map(Number).reduce((a, b) => a + b, 0) }; },
+    () => { const n = R(6, 20); return { key: `odd${n}`, q: `1 + 3 + 5 + … + ${2 * n - 1}`, a: n * n, chk: (() => { let s = 0; for (let i = 1; i <= 2 * n - 1; i += 2) s += i; return s; })() }; },
+    () => { const n = R(5, 14); return { key: `ang${n}`, q: `angle sum of a ${n}-gon`, a: (n - 2) * 180, chk: (n - 2) * 180 }; },
+    () => { const n = R(5, 14); return { key: `dia${n}`, q: `diagonals of a ${n}-gon`, a: (n * (n - 3)) / 2, chk: (() => { let c = 0; for (let i = 0; i < n; i++) for (let j = i + 2; j < n; j++) if (!(i === 0 && j === n - 1)) c++; return c; })() }; },
+    () => { const n = R(5, 20); return { key: `ch${n}`, q: `${n} choose 2`, a: (n * (n - 1)) / 2, chk: (() => { let c = 0; for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) c++; return c; })() }; },
   ];
+
+  // The kind of a fact is its wording with the numbers blanked out ("# × #", "#% of #").
+  const kindOf = (q) => q.replace(/\d[\d,]*/g, '#');
 
   // Spaced repetition: facts missed recently come back first; a fact answered fast and right
   // moves up a box and shows up less often.
-  function nextFact(state) {
+  function nextFact(state, recent = { kinds: [], keys: [] }) {
     const facts = state.facts || (state.facts = {});
-    const weak = Object.entries(facts).filter(([, f]) => f.box < 2 && f.q);
+    const fresh = (f) => !recent.keys.includes(f.key) && !recent.kinds.slice(-5).includes(kindOf(f.q));
+    // A missed fact comes back, but not seconds after he just saw its answer.
+    const weak = Object.entries(facts).filter(([key, f]) => f.box < 2 && f.q && !recent.keys.slice(-8).includes(key));
     if (weak.length && Math.random() < 0.4) {
-      const [key, f] = pick(weak);
-      return { key, q: f.q, a: f.a };
+      const cand = weak.map(([key, f]) => ({ key, q: f.q, a: f.a })).filter(fresh);
+      if (cand.length) return pick(cand);
     }
-    return pick(FACTS)();
+    let f;
+    for (let tries = 0; tries < 30; tries++) { f = pick(FACTS)(); if (fresh(f)) break; }
+    return f;
   }
+  const noteFact = (recent, fact) => { recent.kinds.push(kindOf(fact.q)); recent.keys.push(fact.key); if (recent.kinds.length > 8) recent.kinds.shift(); if (recent.keys.length > 30) recent.keys.shift(); };
   function recordFact(state, fact, ok, ms) {
     const facts = state.facts || (state.facts = {});
     const f = facts[fact.key] || (facts[fact.key] = { box: 0, q: fact.q, a: fact.a });
     f.box = ok && ms < 5000 ? Math.min(5, f.box + 1) : 0;
   }
 
-  root.Hoops = { rankOf, opponent, JERSEYS, COURTS, HALFTIME, FACTS, nextFact, recordFact };
+  root.Hoops = { rankOf, opponent, JERSEYS, COURTS, HALFTIME, FACTS, nextFact, noteFact, kindOf, recordFact };
 })(typeof window !== 'undefined' ? window : globalThis);

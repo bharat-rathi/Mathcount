@@ -70,11 +70,14 @@
       wins: 0, losses: 0, timeouts: 2, jersey: 'gold', number: 23, court: 'hardwood',
       unlocks: ['gold', 'hardwood'], cards: [], shootPB: 0, facts: {},
       // Clutch problems already seen, and why answers went wrong (careless/concept/trick/time).
-      clips: [], hardSeen: [], mistakes: { careless: 0, concept: 0, trick: 0, time: 0 }, mistakeLog: [] };
+      clips: [], seenQ: [], genUse: {}, tick: 0, hardSeen: [], mistakes: { careless: 0, concept: 0, trick: 0, time: 0 }, mistakeLog: [] };
   }
 
   const dayKey = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const daysBetween = (a, b) => Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000);
+
+  // Short fingerprint of a question's text, so "have I seen this?" costs a few bytes each.
+  const hash = (str) => { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); };
 
   // Turn a generator result into a question with lettered choices.
   function makeQuestion(topicId, level, genIdx) {
@@ -84,9 +87,40 @@
       const g = t.gens[i](level);
       const a = String(g.a);
       if (a === 'NaN' || a === 'undefined') continue;
-      return { topic: topicId, level, gen: i, q: g.q, svg: g.svg, answer: a, choices: U.makeChoices(a, g.wrong), steps: g.steps };
+      return { topic: topicId, level, gen: i, tpl: `${topicId}#${i}`, fp: hash(`${topicId}|${g.q}`), q: g.q, svg: g.svg, chk: g.chk, answer: a, choices: U.makeChoices(a, g.wrong), steps: g.steps };
     }
     throw new Error(`generator ${topicId}#${i} keeps failing`);
+  }
+
+  // A question he hasn't met, from a question type he hasn't just used.
+  // Every topic has many question types (generators). fresh() tries the least recently used
+  // types first and re-draws until the question is new to him (state.seenQ, the last 500 he
+  // answered) and new to this game (`batch`), preferring a type not yet used in this game.
+  // Pass `gen` to stay on one type (the adaptive quiz re-makes a question at a new level).
+  function newBatch() { return { fp: new Set(), tpl: new Set() }; }
+  function fresh(state, topicId, level, { gen, batch } = {}) {
+    const t = byId()[topicId], n = t.gens.length;
+    const seen = new Set(state.seenQ || []);
+    const use = (state.genUse && state.genUse[topicId]) || {};
+    const used = batch || newBatch();
+    // Borrowed (MATHCOUNTS) types appear at or below their own difficulty, and one or two
+    // notches above when a topic would otherwise have fewer than 8 types to rotate through.
+    const upTo = (cap) => [...Array(n).keys()].filter((i) => !(t.gens[i].lvl > cap));
+    let allowed = upTo(level);
+    for (let cap = level + 1; allowed.length < 8 && cap <= level + 2; cap++) allowed = upTo(cap);
+    const order = U.shuffle(allowed).sort((a, b) => (use[a] || 0) - (use[b] || 0));
+    const tries = [];
+    if (gen != null && allowed.includes(gen)) for (let k = 0; k < 6; k++) tries.push(gen);
+    for (let k = 0; k < 40; k++) tries.push(order[k % order.length]);
+    let best = null, bestScore = 99;
+    for (const gi of tries) {
+      const q = makeQuestion(topicId, level, gi);
+      const score = (used.fp.has(q.fp) ? 8 : 0) + (seen.has(q.fp) ? 4 : 0) + (gen == null && used.tpl.has(q.tpl) ? 1 : 0);
+      if (score < bestScore) { best = q; bestScore = score; }
+      if (score === 0) break;
+    }
+    used.fp.add(best.fp); used.tpl.add(best.tpl);
+    return best;
   }
 
   // A hand-written clutch problem (js/hard.js) in the same shape as a generated question.
@@ -151,21 +185,21 @@
       const pool = taughtTopics(state, c.upTo);
       // Spread 15 questions over the taught topics, getting harder like the real contest.
       let deck = [];
-      const qs = [];
+      const qs = [], batch = newBatch();
       for (let k = 0; k < 15; k++) {
         if (!deck.length) deck = U.shuffle(pool);
         // The last three are hand-written hard problems, like #23–25 on the real test.
-        qs.push(k >= 12 && root.HARD ? makeHard(deck.pop(), (state.hardSeen || []).concat(qs.map((x) => x.id))) : makeQuestion(deck.pop(), k < 5 ? 1 : k < 11 ? 2 : 3));
+        qs.push(k >= 12 && root.HARD ? makeHard(deck.pop(), (state.hardSeen || []).concat(qs.map((x) => x.id))) : fresh(state, deck.pop(), k < 5 ? 1 : k < 11 ? 2 : 3, { batch }));
       }
       return { idx, kind: 'mock', title: 'Practice Contest', minutes: 25, segments: [{ type: 'mock', questions: qs }] };
     }
     if (c.type === 'playoff') {
       // 25 questions over every topic (the big areas twice as likely), on the real test's curve.
       let deck = [];
-      const qs = [];
+      const qs = [], batch = newBatch();
       for (let k = 0; k < 25; k++) {
         if (!deck.length) deck = U.shuffle([...ORDER, ...LEVEL_UP]);
-        qs.push(k >= 22 && root.HARD ? makeHard(deck.pop(), (state.hardSeen || []).concat(qs.map((x) => x.id))) : makeQuestion(deck.pop(), k < 8 ? 1 : k < 17 ? 2 : 3));
+        qs.push(k >= 22 && root.HARD ? makeHard(deck.pop(), (state.hardSeen || []).concat(qs.map((x) => x.id))) : fresh(state, deck.pop(), k < 8 ? 1 : k < 17 ? 2 : 3, { batch }));
       }
       return { idx, kind: 'playoff', title: '🏆 The Playoffs', minutes: 40, segments: [{ type: 'mock', questions: qs }] };
     }
@@ -174,12 +208,13 @@
     const t = T[c.topic];
     // Every quiz question adapts: it is re-made at the topic's current skill when it is shown.
     const start = levelFor(skillOf(state, t.id, c.pass));
-    // Use every generator before repeating one, so a quiz covers the whole topic.
-    const gens = U.shuffle(t.gens.map((_, i) => i));
-    const quiz = gens.length ? [...Array(10)].map((_, k) => Object.assign(makeQuestion(t.id, start, gens[k % gens.length]), { adapt: true })) : [];
+    // One shared batch per game: no repeated question, and each question uses a different type
+    // from the last until every type for this topic has been used.
+    const batch = newBatch();
+    const quiz = [...Array(10)].map(() => Object.assign(fresh(state, t.id, start, { batch }), { adapt: true }));
     const segments = [{ type: 'shootaround' }];
     const review = reviewTopics(state, taughtTopics(state, idx).filter((id) => id !== t.id), 3);
-    if (review.length) segments.push({ type: 'warmup', questions: review.map((id) => Object.assign(makeQuestion(id, levelFor(skillOf(state, id, c.pass))), { adapt: true })) });
+    if (review.length) segments.push({ type: 'warmup', questions: review.map((id) => Object.assign(fresh(state, id, levelFor(skillOf(state, id, c.pass)), { batch }), { adapt: true })) });
     segments.push({ type: 'lesson', topic: t.id, pass: c.pass });
     const tip = c.pass === 1 ? t.tips[0] : t.tips[1 + (idx % Math.max(1, t.tips.length - 1))] || t.tips[t.tips.length - 1];
     segments.push({ type: 'trick', topic: t.id, tip });
@@ -187,7 +222,7 @@
     segments.push({ type: 'break' });
     segments.push({ type: 'quiz', questions: quiz.slice(5), part: 2 });
     segments.push({ type: 'boss', questions: [root.HARD ? makeHard(t.id, state.hardSeen) : makeQuestion(t.id, 3)] });
-    return { idx, kind: 'lesson', title: prep ? `🔥 Finals Prep: ${t.emoji} ${t.name}` : `${t.emoji} ${t.name}`, pass: c.pass, topic: t.id, prep, minutes: 20, segments };
+    return { idx, batch, kind: 'lesson', title: prep ? `🔥 Finals Prep: ${t.emoji} ${t.name}` : `${t.emoji} ${t.name}`, pass: c.pass, topic: t.id, prep, minutes: 20, segments };
   }
 
   function record(state, q, correct, firstTry) {
@@ -195,6 +230,16 @@
     m.r.push(correct && firstTry ? 1 : 0);
     if (m.r.length > 20) m.r.shift();
     m.seen = state.log.length;
+    // Anti-repeat memory: what he has answered, and when each question type was last used.
+    if (q.fp) {
+      const seenQ = (state.seenQ = state.seenQ || []);
+      seenQ.push(q.fp);
+      if (seenQ.length > 500) seenQ.splice(0, seenQ.length - 500);
+    }
+    if (q.gen != null) {
+      const use = ((state.genUse = state.genUse || {})[q.topic] = state.genUse[q.topic] || {});
+      use[q.gen] = state.tick = (state.tick || 0) + 1;
+    }
   }
 
   const XP_RIGHT = 10, XP_SECOND_TRY = 4, XP_BOSS = 30;
@@ -275,5 +320,5 @@
     return out.sort((a, b) => a.score - b.score).slice(0, n);
   }
 
-  root.Engine = { PREP_GAMES, playoffIdx, prepTopics, skillOf, levelFor, adapt, focusTopics, migratePlan, PLAN_VERSION, MISTAKES, recordMistake, makeHard, ORDER, buildPlan, newState, makeQuestion, buildClass, record, xpFor, levelOf, finishClass, dayKey, daysBetween, taughtTopics, BADGES };
+  root.Engine = { fresh, newBatch, PREP_GAMES, playoffIdx, prepTopics, skillOf, levelFor, adapt, focusTopics, migratePlan, PLAN_VERSION, MISTAKES, recordMistake, makeHard, ORDER, buildPlan, newState, makeQuestion, buildClass, record, xpFor, levelOf, finishClass, dayKey, daysBetween, taughtTopics, BADGES };
 })(typeof window !== 'undefined' ? window : globalThis);

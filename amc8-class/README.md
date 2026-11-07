@@ -25,9 +25,11 @@ win–loss record (a game is a win at 70% or better), and ranks run from Rookie 
   one for every 7-day streak, up to 3.
 - **Playbook:** every trick he unlocks becomes a collectible trading card.
 - **Shootaround:** each class opens with 60 seconds of rapid mental math typed on a
-  keypad (squares, cubes, powers of 2, ×11, ×25, fraction→percent, Pythagorean triples
-  and more), with a personal best to beat. Missed facts come back sooner (spaced
-  repetition).
+  keypad (24 kinds of fact: squares, cubes, powers of 2, ×9, ×11, ×25, ×101, percents,
+  fractions of a number, square roots, Pythagorean triples, polygon angles and more), with
+  a personal best to beat. Missed facts come back sooner (spaced repetition), but never
+  seconds after he just saw the answer, and a session never repeats a fact or asks the same
+  kind twice in a row.
 
 ## A daily class
 
@@ -55,6 +57,24 @@ A wrong first answer gets one more try. After that, the worked solution appears 
 divisibility, primes/GCF/LCM, counting divisors, units digits, remainders, sequences,
 equations, exponents and roots, counting, arrangements, probability, statistics, angles
 and polygons, the Pythagorean theorem, area, circles, 3D solids and coordinate geometry.
+
+### Questions that don't repeat
+
+Every topic has **9 to 14 question types** (321 in all), and each type draws fresh numbers.
+Three things keep quizzes from feeling repetitive:
+
+- **More kinds of question.** Each topic has its own types (`topics-*.js`, `topics-extra.js`)
+  plus the MATHCOUNTS coach's problem types from `../lib`, added through `js/mc-bridge.js`
+  (it converts them to AMC format with the coach's list of classic mistakes as the wrong
+  choices). The bridge needs the page served over http(s), as on GitHub Pages, because it is
+  an ES module.
+- **Rotation.** `Engine.fresh()` picks the question types he has used least recently, and
+  within one game avoids reusing a type until the topic's types are used up.
+- **Memory.** The last 500 questions he answered are remembered (as short fingerprints in
+  `state.seenQ`), and new questions are re-drawn until they are new to him.
+
+Question types that carry a `chk` field compute their answer a second, independent way (a
+brute-force count, a loop, a different formula); the tests fail if the two ever disagree.
 
 The season has 56 games, weighted by what the real test asks, based on 200 problems from
 2018–2026 (see `analysis/`):
@@ -107,5 +127,8 @@ cd amc8-class && npm install && npm test
 ```
 
 The test runs every question generator thousands of times at each level. It checks each
-question for 5 distinct choices, that the answer is among them, and that no text is broken.
-It also checks the course plan and the streak/XP logic.
+question for 5 distinct choices, that the answer is among them, and that no text is broken,
+and it compares every `chk` field with the answer. It simulates whole seasons and fails if
+a game repeats a question, a topic has fewer than 8 question types, quizzes are less than
+85% different types, or the Shootaround repeats itself. It also checks the course plan and
+the streak/XP logic.
