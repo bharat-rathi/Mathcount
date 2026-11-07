@@ -87,8 +87,10 @@
     while (pool.length < 4) { const s = `${answer} ${'+'.repeat(n++)}`; pool.push(s); }
     const list = [String(answer), ...pool.slice(0, 4)];
     // AMC lists numeric choices in increasing order; keep that habit.
-    const allNum = list.every((s) => Number.isFinite(Number(s)));
-    return allNum ? list.sort((a, b) => Number(a) - Number(b)) : shuffle(list);
+    // "$60" and "45%" count as numbers for ordering.
+    const val = (x) => Number(String(x).replace(/^\$/, '').replace(/%$/, ''));
+    const allNum = list.every((x) => Number.isFinite(val(x)));
+    return allNum ? list.sort((a, b) => val(a) - val(b)) : shuffle(list);
   }
 
   root.U = { R, pick, shuffle, gcd, lcm, fact, choose, frac, surd, piStr, divisors, isPrime, ordinal, makeChoices };
