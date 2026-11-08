@@ -8,6 +8,8 @@ Kids never create accounts and never enter an email.
 - each player's **nickname** and jersey number, chosen by the parent (no full names needed)
 - game progress: scores, topics practiced, time spent, streaks, rewards, and the mistake
   types the player tags
+- questions a player reports with the 🚩 button: the question text, its answer, the reason
+  they picked, and which game it was in
 
 **What we don't store:** birthdays, photos, locations, school names, or anything typed
 outside the game.
@@ -16,7 +18,7 @@ outside the game.
 - **Each parent** sees only their own family. The database enforces this.
 - **The site owner** (the person who runs this copy of Math Hoops) can see, on a private analytics
   page: each parent's email address, when they joined and last signed in, and each kid's
-  nickname, number of games, time spent, scores and progress. This is used only to improve the
+  nickname, number of games, time spent, scores and progress, and the questions players report. This is used only to improve the
   app and to help families who ask.
 
 Parent emails are used only for sign-in links and the daily report the parent turns on.

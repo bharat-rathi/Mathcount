@@ -70,7 +70,7 @@
       wins: 0, losses: 0, timeouts: 2, jersey: 'gold', number: 23, court: 'hardwood',
       unlocks: ['gold', 'hardwood'], cards: [], shootPB: 0, facts: {},
       // Clutch problems already seen, and why answers went wrong (careless/concept/trick/time).
-      clips: [], seenQ: [], genUse: {}, tick: 0, hardSeen: [], mistakes: { careless: 0, concept: 0, trick: 0, time: 0 }, mistakeLog: [] };
+      clips: [], reports: [], seenQ: [], genUse: {}, tick: 0, hardSeen: [], mistakes: { careless: 0, concept: 0, trick: 0, time: 0 }, mistakeLog: [] };
   }
 
   const dayKey = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -121,6 +121,22 @@
     }
     used.fp.add(best.fp); used.tpl.add(best.tpl);
     return best;
+  }
+
+  // "Report this question": why a player flags one, kept on his profile and sent to the owner.
+  const REPORT_REASONS = [['wrong', 'Wrong answer'], ['confusing', 'Confusing'], ['hard', 'Too hard'], ['easy', 'Too easy'], ['seen', 'Seen it before'], ['other', 'Something else']];
+  function reportQuestion(state, q, reason, game = 'amc8') {
+    const r = {
+      topic: q.topic || null, tpl: q.tpl || (q.id ? `clutch#${q.id}` : null), game, reason: String(reason).slice(0, 40),
+      question: String(q.q).slice(0, 1000), answer: String(q.answer).slice(0, 200), choices: (q.choices || []).join(' | ').slice(0, 600), at: dayKey(),
+    };
+    const list = (state.reports = state.reports || []);
+    list.push(r);
+    if (list.length > 100) list.splice(0, list.length - 100);
+    // He never sees a reported question again.
+    if (q.fp) { const seen = (state.seenQ = state.seenQ || []); seen.push(q.fp); if (seen.length > 500) seen.splice(0, seen.length - 500); }
+    if (q.id) (state.hardSeen = state.hardSeen || []).push(q.id);
+    return r;
   }
 
   // A hand-written clutch problem (js/hard.js) in the same shape as a generated question.
@@ -320,5 +336,5 @@
     return out.sort((a, b) => a.score - b.score).slice(0, n);
   }
 
-  root.Engine = { fresh, newBatch, PREP_GAMES, playoffIdx, prepTopics, skillOf, levelFor, adapt, focusTopics, migratePlan, PLAN_VERSION, MISTAKES, recordMistake, makeHard, ORDER, buildPlan, newState, makeQuestion, buildClass, record, xpFor, levelOf, finishClass, dayKey, daysBetween, taughtTopics, BADGES };
+  root.Engine = { REPORT_REASONS, reportQuestion, fresh, newBatch, PREP_GAMES, playoffIdx, prepTopics, skillOf, levelFor, adapt, focusTopics, migratePlan, PLAN_VERSION, MISTAKES, recordMistake, makeHard, ORDER, buildPlan, newState, makeQuestion, buildClass, record, xpFor, levelOf, finishClass, dayKey, daysBetween, taughtTopics, BADGES };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -261,6 +261,22 @@ for (const t of TOPICS) if (t.gens.length < 8) fail(`${t.id} has only ${t.gens.l
   for (const [id, [sum, n]] of Object.entries(perTopic)) if (sum / n < 0.7) fail(`${id}: quizzes are only ${(100 * sum / n).toFixed(0)}% varied (want 70%+)`);
 }
 
+// Reporting a question: kept on his profile, never shown again, with sensible limits.
+{
+  const st = Engine.newState(), q = Engine.makeQuestion('percents', 2, 0);
+  const r = Engine.reportQuestion(st, q, 'Wrong answer', 'lesson');
+  if (st.reports.length !== 1 || r.tpl !== q.tpl || r.question !== q.q || r.answer !== q.answer || r.game !== 'lesson') fail('report did not keep the question, type and game');
+  if (!st.seenQ.includes(q.fp)) fail('a reported question must count as seen so it is not shown again');
+  const hard = Engine.makeHard('logic', []);
+  Engine.reportQuestion(st, hard, 'Confusing');
+  if (!st.hardSeen.includes(hard.id) || st.reports[1].tpl !== `clutch#${hard.id}`) fail('a reported clutch problem must be marked seen');
+  const long = Engine.reportQuestion(st, { ...q, q: 'x'.repeat(5000), choices: ['y'.repeat(5000)] }, 'z'.repeat(99));
+  if (long.question.length !== 1000 || long.reason.length !== 40 || long.choices.length !== 600) fail('report fields are not length limited');
+  for (let i = 0; i < 150; i++) Engine.reportQuestion(st, q, 'Too easy');
+  if (st.reports.length !== 100) fail('reports on the profile are capped at 100');
+  if (Engine.REPORT_REASONS.length < 4 || Engine.REPORT_REASONS.some(([k, t]) => !k || t.length > 40)) fail('report reasons');
+}
+
 // Shootaround: 24 kinds of fact, every answer a number the keypad can type (it has a decimal point) that matches its second calculation,
 // and a 60-second session never repeats a fact or asks the same kind twice in a row.
 if (Hoops.FACTS.length < 24) fail(`Shootaround has only ${Hoops.FACTS.length} kinds of fact`);

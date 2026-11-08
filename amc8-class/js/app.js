@@ -386,8 +386,17 @@
     keyHandler = (e) => { if (e.key === 'Enter') next(); };
   }
 
+  // "Report this question": a few reasons to tap; the report is kept on his profile (so he never
+  // sees that question again) and sent to the owner's dashboard when he is signed in.
+  const reasonPicker = () => `<div class="why"><b>What's wrong with this question?</b><div class="guesses">${E.REPORT_REASONS.map(([k, t]) => `<button class="btn ghost small rp-r" data-k="${k}">${t}</button>`).join('')}</div></div>`;
+  function sendReport(q, key, game) {
+    const r = E.reportQuestion(S, q, E.REPORT_REASONS.find((x) => x[0] === key)[1], game);
+    if (kidId) C.reportQuestion(kidId, r);
+    save();
+  }
+
   // Shared multiple-choice block. A first miss gets one more try; after that the solution appears.
-  function askQ(q, { seg, onDone, label, before = '' }) {
+  function askQ(q, { seg, onDone, label, before = '', onReplace }) {
     let tries = 0, done = false, hintsUsed = 0;
     const hintBar = q.hints ? `<div class="row" id="hb" style="margin-top:10px"><button class="btn ghost small" id="h1">💡 Small hint (−10)</button></div><div id="hs"></div>` : '';
     const choices = q.choices.map((c, i) => `<button class="choice" data-c="${esc(c)}"><span class="L">${LETTERS[i]}</span><span>${sup(esc(c))}</span></button>`).join('');
@@ -396,10 +405,23 @@
         ${q.svg ? `<div class="qviz">${q.svg}</div>` : ''}
         <div class="choices">${choices}</div>
         ${hintBar}
+        <div id="rpbox"></div>
         <div id="fb"></div>
-        <div class="row spread" style="margin-top:12px"><button class="btn ghost small" id="say">🔊 Read</button><span class="combo" id="combo">${P.combo >= 3 ? `🔥 ${P.combo} straight: you're heating up!` : P.combo === 2 ? '🔥 2 in a row' : ''}</span></div>
+        <div class="row spread" style="margin-top:12px"><span class="row" style="gap:6px"><button class="btn ghost small" id="say">🔊 Read</button><button class="btn ghost small" id="rp" title="Something wrong with this question?">🚩 Report</button></span><span class="combo" id="combo">${P.combo >= 3 ? `🔥 ${P.combo} straight: you're heating up!` : P.combo === 2 ? '🔥 2 in a row' : ''}</span></div>
       </div>`, label);
     $('#say').onclick = () => speak(q.q + '. ' + q.choices.map((c, i) => LETTERS[i] + ': ' + c).join('. '));
+    // 🚩 Report: pick a reason; before he answers he gets a different question, after, just a thanks.
+    $('#rp').onclick = () => {
+      const box = $('#rpbox');
+      if (box.innerHTML) { box.innerHTML = ''; return; }
+      box.innerHTML = reasonPicker();
+      box.querySelectorAll('.rp-r').forEach((b) => (b.onclick = () => {
+        sendReport(q, b.dataset.k, P.cls.kind);
+        if (!done && onReplace) { sfx.tick(); onReplace(); return; }
+        box.innerHTML = '<div class="feedback good">🚩 Thanks! You won\'t see this one again.</div>';
+        $('#rp').disabled = true;
+      }));
+    };
     autoSpeak(q.q);
     const btns = [...app.querySelectorAll('.choice')];
     const finish = (correct) => {
@@ -479,7 +501,7 @@
       P.moved = 0;
     }
     const label = (s.seg === 'warmup' ? `Pregame warm-up ${s.n}/${s.of} · ${t.emoji} ${t.name}` : `${s.part === 2 ? '2nd' : '1st'} half · possession ${s.n}/${s.of}`) + tag;
-    askQ(s.q, { seg: s.seg, label, onDone: (correct, firstTry) => {
+    askQ(s.q, { seg: s.seg, label, onReplace: () => { s.q = Object.assign(E.fresh(S, id, s.q.level, { batch: P.cls.batch }), { adapt: s.q.adapt }); question(s); }, onDone: (correct, firstTry) => {
       if (s.q.adapt) {
         const before = P.skill[id] != null ? P.skill[id] : E.skillOf(S, id, P.cls.pass);
         P.skill[id] = E.adapt(before, correct, firstTry);
@@ -616,7 +638,8 @@
     confetti(stars * 40); sfx.level();
     const review = P.review ? `<div class="card"><h3>Review your answers</h3>${P.review.map(({ q, pick }, i) => `
         <details ${pick === q.answer ? '' : 'open'}><summary>${pick === q.answer ? '✅' : pick == null ? '⬜' : '❌'} ${i + 1}. ${sup(esc(q.q))}</summary>
-        <p>Your answer: <b>${pick == null ? 'skipped' : sup(esc(pick))}</b> · Correct: <b>${sup(esc(q.answer))}</b></p><ol class="sol">${q.steps.map((s) => `<li>${sup(esc(s))}</li>`).join('')}</ol></details>`).join('')}</div>` : '';
+        <p>Your answer: <b>${pick == null ? 'skipped' : sup(esc(pick))}</b> · Correct: <b>${sup(esc(q.answer))}</b></p><ol class="sol">${q.steps.map((s) => `<li>${sup(esc(s))}</li>`).join('')}</ol>
+        <p><button class="btn ghost small rp-rev" data-i="${i}">🚩 Report this question</button></p><div class="rp-out" data-i="${i}"></div></details>`).join('')}</div>` : '';
     h(`<div class="card" style="text-align:center">
         <h1>${P.practice ? 'Practice complete! 🎉' : P.cls.kind === 'playoff' ? `Playoffs: ${P.right}/${P.total} ${P.right >= 15 ? '🏆' : '💪'}` : P.cls.kind === 'paper' ? `${P.right}/25 on the real AMC 8 ${P.right >= 21 ? '👑' : '🏆'}` : win ? 'FINAL: WIN! 🏆' : 'FINAL: tough loss 😤'}</h1>
         ${P.cls.kind === 'playoff' ? `<p>${P.right >= 21 ? 'Honor Roll pace. Finals Prep will sharpen the last few points.' : P.right >= 15 ? 'Strong showing! Finals Prep goes after the points you dropped.' : 'Every miss tells us where the points are. Finals Prep starts there.'}</p>` : ''}
@@ -633,6 +656,14 @@
       </div>${P.cls.kind === 'playoff' ? `<div class="card"><h3>🔥 Your Finals Prep week</h3><p class="muted">Built from these results: one game a day on the topics that cost you the most points.</p><ol>${E.prepTopics(S).map((id) => { const b = S.playoff.byTopic[id]; return `<li>${TOP[id].emoji} ${esc(TOP[id].name)}${b ? ` <span class="muted">(${b[0]}/${b[1]} in the Playoffs)</span>` : ''}</li>`; }).join('')}</ol></div>` : nextUp()}${review}`);
     $('#home').onclick = home;
     bindPracticeButtons();
+    app.querySelectorAll('.rp-rev').forEach((b) => (b.onclick = () => {
+      const i = +b.dataset.i, out = app.querySelector(`.rp-out[data-i="${i}"]`);
+      out.innerHTML = reasonPicker();
+      out.querySelectorAll('.rp-r').forEach((x) => (x.onclick = () => {
+        sendReport(P.review[i].q, x.dataset.k, P.cls.kind);
+        out.innerHTML = '<div class="feedback good">🚩 Thanks! You won\'t see this one again.</div>'; b.disabled = true;
+      }));
+    }));
     if (pack) $('#open').onclick = () => { sfx.level(); confetti(60); $('#pack').innerHTML = `<div class="pack-open">${pack.em}<b>${esc(pack.label)}</b>${pack.kind ? '<span>Equip it in the Locker room</span>' : ''}</div>`; };
   }
 

@@ -46,6 +46,13 @@
     loadSettings: async () => must(await db.from('parent_settings').select('*').maybeSingle()),
     saveSettings: async (s) => must(await db.from('parent_settings').upsert({ ...s, parent_id: userId })),
     deleteFamily: async () => must(await db.rpc('delete_my_family')),
+    // A player's "report this question" goes to the owner; if the table isn't there yet, the
+    // report is still kept on the profile.
+    reportQuestion: async (kidId, r) => {
+      try { must(await db.from('question_reports').insert({ kid_id: kidId, topic: r.topic, tpl: r.tpl, game: r.game, reason: r.reason, question: r.question, answer: r.answer, choices: r.choices })); }
+      catch (e) { console.warn('Report not sent to the owner', e); }
+    },
+    adminReports: async () => must(await db.rpc('admin_reports')),
     // Analytics for the site owner; the database refuses anyone not in the admins table.
     isAdmin: async () => { const { data, error } = await db.rpc('is_admin'); return !error && data === true; },
     adminOverview: async () => must(await db.rpc('admin_overview')),
