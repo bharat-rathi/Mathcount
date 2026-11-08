@@ -64,11 +64,31 @@ assert.ok(fa && ov.length === 2, 'admin sees every family');
 const ak = fa.kids.find((k) => k.name === 'Arjun');
 assert.equal(ak.games, 2); assert.equal(ak.game_seconds, 900); assert.equal(ak.right, 17); assert.equal(ak.days_active, 2);
 
+// Question reports: parents add and see only their own; the owner reads them all; 500 per family.
+const rep = (who, extra = '') => as(who, `insert into question_reports (kid_id, topic, tpl, game, reason, question, answer, choices) values (${extra || 'null'}, 'percents', 'percents#4', 'amc8', 'Wrong answer', 'What is 20% of 120?', '24', '22|24|26') returning id`);
+await rep(A, `'${kid.id}'`);
+await rep(B);
+assert.equal((await as(A, 'select * from question_reports')).rows.length, 1, 'A sees only their own reports');
+assert.equal((await as(B, 'select * from question_reports')).rows.length, 1, 'B sees only their own reports');
+await fails(as(B, `insert into question_reports (kid_id, reason, question) values ('${kid.id}', 'x', 'y')`), 'B cannot report against A kid');
+await fails(as(A, `insert into question_reports (reason, question) values ('${'r'.repeat(41)}', 'y')`), 'reason is length limited');
+await fails(as(A, `insert into question_reports (reason, question) values ('ok', '${'q'.repeat(1001)}')`), 'question is length limited');
+await db.exec(`set role anon;`);
+await fails(db.query('select * from question_reports'), 'anon cannot read reports');
+await db.exec('reset role;');
+await fails(as(A, 'select admin_reports()'), 'non-admin cannot read all reports');
+const all = (await as(B, 'select admin_reports() r')).rows[0].r;   // B is the admin (see above)
+assert.equal(all.length, 2, 'admin sees every family\'s reports');
+assert.ok(all.some((r) => r.email === 'a@example.com' && r.kid === 'Arjun' && r.tpl === 'percents#4'), 'report carries the parent, kid and type');
+for (let i = 0; i < 499; i++) await db.exec(`insert into question_reports (parent_id, reason, question) values ('${B}', 'bulk', 'q')`);
+await fails(rep(B), '500 reports per family');
+
 // Delete my family: everything of A's goes, B is untouched.
 await as(B, `insert into kids (name) values ('Bea')`);
 await as(A, 'select delete_my_family()');
 assert.equal((await db.query(`select count(*)::int n from kids where parent_id = '${A}'`)).rows[0].n, 0);
 assert.equal((await db.query(`select count(*)::int n from games where parent_id = '${A}'`)).rows[0].n, 0);
 assert.equal((await db.query(`select count(*)::int n from auth.users where id = '${A}'`)).rows[0].n, 0);
+assert.equal((await db.query(`select count(*)::int n from question_reports where parent_id = '${A}'`)).rows[0].n, 0, 'reports go with the family');
 assert.equal((await db.query(`select count(*)::int n from kids where parent_id = '${B}'`)).rows[0].n, 1);
 console.log('OK — database rules');

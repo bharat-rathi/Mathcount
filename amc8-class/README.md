@@ -58,6 +58,16 @@ divisibility, primes/GCF/LCM, counting divisors, units digits, remainders, seque
 equations, exponents and roots, counting, arrangements, probability, statistics, angles
 and polygons, the Pythagorean theorem, area, circles, 3D solids and coordinate geometry.
 
+### Reporting a question
+
+Every quiz question has a **🚩 Report** button (and each answer in a contest review). He picks a
+reason (wrong answer, confusing, too hard, too easy, seen it before, something else). Before he
+answers he gets a different question at the same spot; the reported one is remembered as seen so
+it never comes back. The report is kept on his profile and, when signed in, sent to the owner:
+`supabase/migrations/003-question-reports.sql` adds the table (500 per family, row-level
+security) and an owner-only `admin_reports()`. The admin dashboard shows the most-reported
+question types first, the latest reports, and a CSV export.
+
 ### Questions that don't repeat
 
 Every topic has **9 to 14 question types** (321 in all), and each type draws fresh numbers.

@@ -37,7 +37,7 @@
     };
   }
 
-  let fams = [], kids = [], sortKey = 'last', sortDir = -1, filter = '';
+  let fams = [], kids = [], reports = [], reportsErr = '', sortKey = 'last', sortDir = -1, filter = '';
   const mins = (k) => Math.max((k.report && k.report.minutes) || 0, Math.round((k.game_seconds || 0) / 60));
   const hm = (m) => (m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`);
   const ago = (t) => { if (!t) return '—'; const d = Math.floor((Date.now() - new Date(t)) / DAY); return d <= 0 ? 'today' : d === 1 ? 'yesterday' : `${d}d ago`; };
@@ -62,7 +62,24 @@
     h('<div class="card"><p>Loading analytics…</p></div>');
     try { fams = await C.adminOverview(); } catch (e) { return h(`<div class="card"><p>Could not load analytics: ${esc(e.message || e)}</p></div>`); }
     kids = fams.flatMap((f) => f.kids.map((k) => ({ ...k, email: f.email })));
+    // Reported questions come from a separate migration; the rest of the page works without it.
+    try { reports = await C.adminReports(); reportsErr = ''; } catch (e) { reports = []; reportsErr = String(e.message || e); }
     render(me);
+  }
+
+  // 🚩 Reported questions: which question types get flagged most, and the latest reports.
+  function reportsCard() {
+    if (reportsErr) return `<div class="card"><h2>🚩 Reported questions</h2><p class="muted">Not set up yet (${esc(reportsErr)}). In Supabase → SQL Editor, run <code>supabase/migrations/003-question-reports.sql</code>, then refresh.</p></div>`;
+    if (!reports.length) return '<div class="card"><h2>🚩 Reported questions</h2><p class="muted">No reports yet. Players can tap 🚩 Report on any question.</p></div>';
+    const by = {};
+    reports.forEach((r) => { const g = (by[r.tpl || '(unknown)'] = by[r.tpl || '(unknown)'] || { tpl: r.tpl || '(unknown)', topic: r.topic, n: 0, reasons: {}, q: r.question, a: r.answer }); g.n++; g.reasons[r.reason] = (g.reasons[r.reason] || 0) + 1; });
+    const top = Object.values(by).sort((a, b) => b.n - a.n).slice(0, 15);
+    const cut = (t, n) => (String(t).length > n ? String(t).slice(0, n) + '…' : String(t));
+    return `<div class="card"><div class="row spread"><h2>🚩 Reported questions</h2><button class="btn ghost small" id="repcsv">⬇️ Reports CSV</button></div>
+        <p class="muted">Most-reported question types first. "Wrong answer" reports are the ones to check right away.</p>
+        <div class="scroll"><table><thead><tr><th>Type</th><th>Topic</th><th>Reports</th><th>Reasons</th><th>Example</th><th>Its answer</th></tr></thead><tbody>${top.map((g) => `<tr><td>${esc(g.tpl)}</td><td>${esc(g.topic || '')}</td><td><b>${g.n}</b></td><td class="wrap">${Object.entries(g.reasons).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${esc(k)} ×${n}`).join(', ')}</td><td class="wrap">${esc(cut(g.q, 110))}</td><td>${esc(g.a || '')}</td></tr>`).join('')}</tbody></table></div>
+        <h3 style="margin-top:16px">Latest</h3>
+        <div class="scroll"><table><thead><tr><th>When</th><th>Parent</th><th>Kid</th><th>Game</th><th>Reason</th><th>Question</th></tr></thead><tbody>${reports.slice(0, 40).map((r) => `<tr><td>${esc(String(r.when).slice(0, 10))}</td><td>${esc(r.email || '')}</td><td>${esc(r.kid || '')}</td><td>${esc(r.game || '')}</td><td>${esc(r.reason)}</td><td class="wrap">${esc(cut(r.question, 100))}</td></tr>`).join('')}</tbody></table></div></div>`;
   }
 
   function render(me) {
@@ -87,6 +104,7 @@
           <div class="stat"><b>${games}</b>games played</div>
           <div class="stat"><b>${hm(totalMin)}</b>total time</div>
           <div class="stat"><b>${total ? Math.round((100 * right) / total) + '%' : '—'}</b>accuracy</div>
+          <div class="stat"><b>${reportsErr ? '—' : reports.length}</b>question reports</div>
         </div>
         <h3 style="margin-top:18px">New families per week</h3>
         <div class="bars">${weeks.map((n) => `<i style="height:${(100 * n) / top}%" title="${n}"></i>`).join('')}</div>
@@ -94,10 +112,19 @@
       <div class="card"><div class="row spread"><h2>Kids</h2><input id="q" type="search" placeholder="Filter by email or name" value="${esc(filter)}"></div>
         <div class="scroll"><table><thead><tr>${COLS.map(([key, label]) => `<th data-s="${key}">${label}${sortKey === key ? (sortDir > 0 ? ' ▲' : ' ▼') : ''}</th>`).join('')}</tr></thead>
         <tbody>${shown.map((k) => `<tr>${COLS.map(([key, , val, show]) => `<td class="${key === 'weak' ? 'wrap' : ''}">${esc((show || val)(k))}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${COLS.length}" class="muted">No kids yet.</td></tr>`}</tbody></table></div></div>
+      ${reportsCard()}
       <div class="card"><h2>Families</h2><div class="scroll"><table><thead><tr><th>Parent email</th><th>Joined</th><th>Last sign-in</th><th>Kids</th><th>Last active</th></tr></thead>
         <tbody>${fams.map((x) => `<tr><td>${esc(x.email)}</td><td>${esc(String(x.joined).slice(0, 10))}</td><td>${ago(x.last_sign_in)}</td><td>${x.kids.length ? x.kids.map((k) => esc(k.name)).join(', ') : '<span class="muted">none yet</span>'}</td><td>${ago(x.last_active)}</td></tr>`).join('')}</tbody></table></div></div>
       <p class="muted" style="text-align:center">Time counts games, practice and Concept Studio clips. Accuracy is over all game questions. Only emails in the admins table can open this page.</p>`);
     $('#rf').onclick = () => load(me);
+    if ($('#repcsv')) $('#repcsv').onclick = () => {
+      const q = (x) => `"${String(x ?? '').replace(/"/g, '""')}"`;
+      const head = ['when', 'parent', 'kid', 'game', 'topic', 'type', 'reason', 'question', 'answer', 'choices'];
+      const text = [head, ...reports.map((r) => [String(r.when).slice(0, 19), r.email, r.kid, r.game, r.topic, r.tpl, r.reason, r.question, r.answer, r.choices])].map((row) => row.map(q).join(',')).join('\n');
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([text], { type: 'text/csv' }));
+      a.download = `math-hoops-reports-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+    };
     $('#out').onclick = async () => { await C.signOut(); signIn(); };
     $('#csv').onclick = () => {
       const q = (x) => `"${String(x).replace(/"/g, '""')}"`;
