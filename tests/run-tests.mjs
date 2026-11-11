@@ -170,6 +170,21 @@ assert.ok(result.why[0].includes('diameter'), 'should explain the radius/diamete
   console.log('needs help:', d.needsHelp.map((t) => `${t.id} ${Math.round(t.recentAcc * 100)}%`).join(', '));
 }
 
+// Regression: wording and "common mistake" hygiene reported by a student
+{
+  let bad = 0;
+  const plain = (h) => String(h).replace(/<[^>]+>/g, '');
+  for (const t of TOPICS) for (const v of t.variants) for (let k = 0; k < 150; k++) {
+    const q = generateQuestion(t.id, v.level, 911 * k + 3, v.id);
+    const ans = specToString(q.answer);
+    const ms = (q.mistakes || []).map((m) => (typeof m.value === 'object' ? specToString(m.value) : String(m.value)));
+    if (ms.includes(ans) || new Set(ms).size !== ms.length) { bad++; console.error('mistake equals answer/duplicate:', t.id, v.id); }
+    const txt = plain(q.q);
+    if (/\b1 (inches|students|hours|miles|feet)\b/.test(txt) || /[+−] 0(?![.\d])/.test(txt)) { bad++; console.error('wording:', txt); }
+  }
+  assert.equal(bad, 0, 'question wording / mistakes hygiene');
+}
+
 console.log(`${generated} questions generated across ${TOPICS.length} topics / ${TOPICS.reduce((a, t) => a + t.variants.length, 0)} variants`);
 if (failures) { console.error(`${failures} failures`); process.exit(1); }
 console.log('All tests passed');
